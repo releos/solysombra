@@ -1,0 +1,124 @@
+name: Generar tiles de edificios (España completa)
+
+on:
+  # Ejecución manual desde GitHub → Actions → "Run workflow"
+  workflow_dispatch:
+    inputs:
+      province:
+        description: 'Código de provincia (ej: 28). Vacío = toda España'
+        required: false
+        default: ''
+      workers:
+        description: 'Hilos paralelos de descarga'
+        required: false
+        default: '8'
+
+  # Ejecución automática mensual (primer domingo de cada mes, 3:00 UTC)
+  schedule:
+    - cron: '0 3 1-7 * 0'
+
+jobs:
+  generate-tiles:
+    name: Descargar y procesar Catastro INSPIRE
+    runs-on: ubuntu-latest
+    timeout-minutes: 360   # 6 horas máximo (toda España ~3-5 h)
+
+    permissions:
+      contents: write   # necesario para hacer commit de los tiles
+
+    steps:
+      - name: Checkout repositorio
+        uses: actions/checkout@v4
+        with:
+          # Traer el historial completo para poder hacer push
+          fetch-depth: 1
+
+      - name: Configurar Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Instalar dependencias
+        run: pip install requests
+
+      - name: Restaurar caché de municipios ya procesados
+        uses: actions/cache@v4
+        with:
+          path: |
+            data/processed.json
+            data/errors.json
+          key: catastro-processed-${{ github.run_number }}
+          restore-keys: catastro-processed-
+
+      - name: Ejecutar preprocesador
+        run: |
+          ARGS="--resume --workers ${{ github.event.inputs.workers || '8' }}"
+          if [ -n "${{ github.event.inputs.province }}" ]; then
+            ARGS="$ARGS --province ${{ github.event.inputs.province }}"
+          fi
+          python preprocess_spain.py $ARGS
+
+      - name: Resumen de resultados
+        run: |
+          echo "### Tiles generados" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          if [ -f data/meta.json ]; then
+            cat data/meta.json | python3 -c "
+          import json,sys
+          m=json.load(sys.stdin)
+          print(f'- **Edificios**: {m[\"buildings\"]:,}')
+          print(f'- **Tiles**: {m[\"tiles\"]:,}')
+          print(f'- **Generado**: {m[\"generated\"]}')
+          print(f'- **Fuente**: {m[\"source\"]}')
+          " >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Tamaño de data/:**" >> $GITHUB_STEP_SUMMARY
+          du -sh data/ >> $GITHUB_STEP_SUMMARY
+
+      - name: Commit y push de los tiles
+        run: |
+          git config user.name  "ShadowMap Bot"
+          git config user.email "shadowmap-bot@users.noreply.github.com"
+          git add data/
+          # Solo hacer commit si hay cambios
+          git diff --cached --quiet || git commit -m \
+            "feat(data): actualizar tiles Catastro INSPIRE [skip ci]
+          
+          Generado: $(date -u +%Y-%m-%dT%H:%M:%SZ)
+          Provincia: ${{ github.event.inputs.province || 'España completa' }}
+          Workflow: ${{ github.run_id }}"
+          git push
+
+  # Job separado para solo regenerar meta.json sin re-descargar
+  update-meta:
+    name: Regenerar meta.json
+    runs-on: ubuntu-latest
+    needs: generate-tiles
+    if: always()
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main   # Usar el commit más reciente (el que acaba de hacer generate-tiles)
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - run: pip install requests
+
+      - name: Regenerar meta.json
+        run: python preprocess_spain.py --meta-only
+
+      - name: Commit meta.json
+        run: |
+          git config user.name  "ShadowMap Bot"
+          git config user.email "shadowmap-bot@users.noreply.github.com"
+          git add data/meta.json
+          git diff --cached --quiet || git commit -m "chore(meta): actualizar meta.json [skip ci]"
+          git push
