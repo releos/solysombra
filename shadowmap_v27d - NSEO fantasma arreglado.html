@@ -1,0 +1,3206 @@
+<!DOCTYPE html>
+<html lang="es" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f1420">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="ShadowMap">
+<meta name="description" content="Visualiza las sombras de los edificios de Madrid en tiempo real.">
+<title>ShadowMap · Madrid</title>
+<link rel="manifest" href="data:application/json,%7B%22name%22%3A%22ShadowMap+Madrid%22%2C%22short_name%22%3A%22ShadowMap%22%2C%22description%22%3A%22Sombras+de+edificios+de+Madrid+en+tiempo+real%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%230f1420%22%2C%22theme_color%22%3A%22%23e87d0d%22%2C%22orientation%22%3A%22any%22%2C%22icons%22%3A%5B%7B%22src%22%3A%22data%3Aimage%2Fsvg%2Bxml%2C%253Csvg+xmlns%3D%2522http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%2522+viewBox%3D%220+0+100+100%2522%253E%253Ccircle+cx%3D%252250%2522+cy%3D%252250%2522+r%3D%252250%2522+fill%3D%2522%23e87d0d%2522%2F%253E%253Ctext+x%3D%252250%2522+y%3D%252268%2522+text-anchor%3D%2522middle%2522+font-size%3D%252260%2522%253E%25E2%2598%2580%25EF%25B8%258F%253C%2Ftext%253E%253C%2Fsvg%253E%22%2C%22sizes%22%3A%22any%22%2C%22type%22%3A%22image%2Fsvg%2Bxml%22%7D%5D%7D">
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+
+<style>
+:root,[data-theme="dark"]{
+  --bg:#0f1420;--panel:#1a1f2e;--surface:#2a3040;--border:#3a4050;
+  --text:#f2f2f2;--muted:#b0c4d8;--dim:#8898aa;
+}
+[data-theme="light"]{
+  --bg:#f0f2f5;--panel:#ffffff;--surface:#f7f9fb;--border:#dde2ea;
+  --text:#0d1117;--muted:#374151;--dim:#4a5a6a;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+html{height:100%;}
+body{height:100%;min-height:-webkit-fill-available;font-family:'Helvetica Neue',system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;transition:background .3s,color .3s;}
+
+/* ── LAYOUT ── */
+#app{display:grid;grid-template-columns:268px 1fr;height:100vh;height:100dvh;transition:grid-template-columns .28s ease;}
+#app.panel-hidden{grid-template-columns:0px 1fr;}
+
+/* ── PANEL ── */
+#panel{background:var(--panel);border-right:0.5px solid var(--border);display:flex;flex-direction:column;overflow:hidden;z-index:10;transition:background .3s;min-width:0;}
+#panel-tabs{display:flex;border-bottom:0.5px solid var(--border);flex-shrink:0;}
+.ptab{flex:1;padding:8px 4px;font-size:9px;letter-spacing:.04em;text-transform:uppercase;cursor:pointer;border:none;background:transparent;color:var(--dim);transition:all .15s;border-bottom:2px solid transparent;margin-bottom:-1px;}
+.ptab:hover{color:var(--muted);}
+.ptab.active{color:var(--text);border-bottom-color:#e87d0d;}
+.tab-pane{display:none;flex:1;flex-direction:column;overflow:hidden;min-height:0;}
+.tab-pane.active{display:flex;}
+#pscroll{overflow-y:auto;flex:1;padding:14px 12px;}
+#pscroll::-webkit-scrollbar{width:2px;}
+#pscroll::-webkit-scrollbar-thumb{background:var(--border);}
+.tab-scroll{overflow-y:auto;flex:1;padding:14px 12px;font-size:11px;color:var(--muted);line-height:1.6;}
+.tab-scroll::-webkit-scrollbar{width:2px;}
+.tab-scroll::-webkit-scrollbar-thumb{background:var(--border);}
+.tab-scroll h3{font-size:11px;font-weight:600;color:var(--text);margin:12px 0 5px;letter-spacing:.03em;}
+.tab-scroll h3:first-child{margin-top:0;}
+.tab-scroll p{margin-bottom:8px;font-size:10px;}
+.tab-scroll a{color:#e87d0d;text-decoration:none;}
+.tab-scroll .credit-row{display:flex;align-items:flex-start;gap:8px;margin-bottom:8px;padding:7px 9px;background:var(--surface);border-radius:6px;border:0.5px solid var(--border);}
+.tab-scroll .credit-icon{font-size:16px;flex-shrink:0;margin-top:1px;}
+.tab-scroll .credit-text{font-size:9px;line-height:1.5;}
+.tab-scroll .credit-text strong{display:block;font-size:10px;color:var(--text);margin-bottom:1px;}
+.tut-step{display:flex;gap:10px;margin-bottom:10px;padding:8px 10px;background:var(--surface);border-radius:7px;border:0.5px solid var(--border);}
+.tut-num{width:20px;height:20px;border-radius:50%;background:#e87d0d;color:#fff;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;}
+.tut-body{flex:1;}
+.tut-body strong{display:block;font-size:10px;color:var(--text);margin-bottom:2px;}
+.tut-body span{font-size:9px;color:var(--muted);line-height:1.5;}
+
+.logo{font-size:15px;font-weight:700;color:var(--text);margin-bottom:1px;}
+.logo span{color:#e87d0d;}
+.subloc{font-size:10px;color:var(--muted);margin-bottom:14px;}
+.lbl{font-size:9px;letter-spacing:0.08em;text-transform:uppercase;color:var(--dim);margin:0 0 5px;}
+#tbig{font-size:32px;font-weight:300;font-variant-numeric:tabular-nums;letter-spacing:-1px;color:var(--text);line-height:1;margin-bottom:2px;cursor:pointer;user-select:none;transition:color .15s;}
+#tbig:hover{color:#e87d0d;}
+#sunst{font-size:10px;color:var(--muted);margin-bottom:9px;min-height:13px;}
+input[type=range]{width:100%;-webkit-appearance:none;height:2px;border-radius:2px;background:var(--surface);outline:none;margin-bottom:2px;cursor:pointer;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;border-radius:50%;background:#e87d0d;cursor:pointer;}
+#wsc{display:block;width:100%;height:10px;border-radius:2px;margin-bottom:3px;}
+.stlbls{display:flex;justify-content:space-between;font-size:9px;color:var(--dim);margin-bottom:12px;}
+input[type=date]{width:100%;background:var(--surface);border:0.5px solid var(--border);border-radius:6px;padding:5px 8px;color:var(--text);font-size:11px;margin-bottom:10px;cursor:pointer;}
+[data-theme="dark"] input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.5);opacity:.6;}
+.sgrid4{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:10px;}
+.sc{background:var(--surface);border-radius:6px;padding:6px 8px;border:0.5px solid var(--border);}
+.sc-l{font-size:9px;color:var(--dim);margin-bottom:1px;}
+.sc-v{font-size:12px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums;}
+#src-badge{display:flex;align-items:center;gap:6px;padding:6px 9px;border-radius:6px;margin-bottom:10px;font-size:10px;background:var(--surface);border:0.5px solid var(--border);transition:all .3s;}
+#src-badge.ok{background:rgba(46,160,90,.12);border-color:rgba(46,160,90,.35);}
+#src-badge.err{background:rgba(200,50,50,.12);border-color:rgba(200,50,50,.35);}
+.sb-dot{width:6px;height:6px;border-radius:50%;background:var(--dim);flex-shrink:0;}
+#src-badge.ok .sb-dot{background:#2ea05a;}
+#src-badge.err .sb-dot{background:#c03030;}
+.sb-text{flex:1;line-height:1.3;color:var(--muted);}
+#src-badge.ok .sb-text{color:#2ea05a;}
+[data-theme="dark"] #src-badge.ok .sb-text{color:#6ee7a8;}
+#src-badge.err .sb-text{color:#c03030;}
+.sb-n{font-family:monospace;font-size:9px;color:var(--dim);}
+#src-badge.ok .sb-n{color:#2ea05a;}
+#nightbanner{display:none;background:#1a2340;border-radius:7px;padding:10px;margin-bottom:10px;border:0.5px solid #263057;}
+.nb-icon{font-size:18px;margin-bottom:4px;}.nb-title{font-size:11px;font-weight:600;color:#a0b8e8;margin-bottom:2px;}
+.nb-sub{font-size:9px;color:#6070a0;line-height:1.4;}
+.nb-times{display:flex;gap:6px;margin-top:6px;}
+.nb-t{flex:1;background:#243060;border-radius:4px;padding:4px 6px;text-align:center;}
+.nb-tl{font-size:9px;color:#6070a0;margin-bottom:1px;}
+.nb-tv{font-size:12px;font-weight:600;color:#a0c0f8;font-variant-numeric:tabular-nums;}
+#twibanner{display:none;background:#2a1a0a;border-radius:6px;padding:8px 10px;margin-bottom:10px;border:0.5px solid #5a3010;}
+#twibanner p:first-child{font-size:10px;font-weight:600;color:#e8a060;margin-bottom:2px;}
+#twibanner p:last-child{font-size:9px;color:#a06030;line-height:1.3;}
+#uvcard{border-radius:6px;padding:9px;margin-bottom:10px;border:0.5px solid var(--border);background:var(--surface);transition:background .3s,border-color .3s;}
+.uvrow{display:flex;align-items:center;gap:8px;margin-bottom:5px;}
+#uvnum{font-size:26px;font-weight:300;font-variant-numeric:tabular-nums;color:var(--text);line-height:1;}
+#uvbadge{font-size:10px;font-weight:600;padding:2px 6px;border-radius:3px;display:inline-block;margin-bottom:2px;background:var(--border);color:var(--muted);}
+#uvspf{font-size:9px;color:var(--dim);}
+.uvbar{height:3px;border-radius:2px;background:linear-gradient(to right,#1D9E75,#EF9F27,#D85A30,#E24B4A,#7F77DD);position:relative;margin-bottom:4px;}
+#uvcur{position:absolute;top:-5px;width:2px;height:13px;border-radius:1px;background:var(--text);transform:translateX(-50%);left:0%;transition:left .3s;}
+#uvtip{font-size:9px;color:var(--muted);line-height:1.4;}
+#wxcard{background:var(--surface);border:0.5px solid var(--border);border-radius:6px;padding:8px;margin-bottom:10px;}
+.wxrow{display:flex;align-items:center;gap:4px;margin-bottom:4px;}
+#wxicon{font-size:18px;line-height:1;}
+#wxtemp{font-size:22px;font-weight:300;color:var(--text);margin-left:4px;margin-right:8px;font-variant-numeric:tabular-nums;}
+#wxdesc{font-size:11px;font-weight:500;color:var(--text);}
+#wxsub{font-size:9px;color:var(--muted);}
+.wxg{display:grid;grid-template-columns:1fr 1fr;gap:4px;}
+.wx-l{font-size:9px;color:var(--dim);margin-bottom:1px;}
+.wx-v{font-size:11px;font-weight:500;color:var(--text);}
+#fcast{margin-bottom:10px;}
+.frow{display:flex;align-items:center;gap:6px;padding:3px 2px;border-radius:3px;cursor:pointer;font-size:10px;color:var(--muted);}
+.frow:hover{background:var(--surface);}
+.fi{font-size:12px;width:16px;text-align:center;}.fn{width:22px;color:var(--dim);}.fd{flex:1;}.fc{font-family:monospace;font-size:10px;color:var(--text);font-weight:500;text-align:right;min-width:45px;}
+#dsrc{font-size:9px;color:var(--dim);padding:4px 12px;text-align:right;flex-shrink:0;}
+
+/* ── MAP WRAP ── */
+#mapwrap{position:relative;overflow:hidden;}
+#map{position:absolute;inset:0;-webkit-transform:translateZ(0);transform:translateZ(0);}
+#shcanvas{position:absolute;inset:0;pointer-events:none;z-index:2;will-change:contents;}
+#mapnight{position:absolute;inset:0;background:rgba(8,12,28,.75);z-index:4;display:none;pointer-events:none;}
+#mapnight-inner{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);text-align:center;}
+.mn-icon{font-size:36px;margin-bottom:7px;opacity:.6;}
+.mn-title{font-size:15px;font-weight:300;color:rgba(180,200,255,.75);margin-bottom:4px;}
+.mn-sub{font-size:11px;color:rgba(110,140,210,.55);}
+#maptwi{position:absolute;inset:0;background:rgba(70,25,0,.18);z-index:3;display:none;pointer-events:none;}
+
+/* ── TOOLBAR ── */
+#toolbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);z-index:6;}
+#toolbar-inner{display:flex;gap:2px;background:var(--panel);border:0.5px solid var(--border);border-radius:7px;padding:3px;box-shadow:0 2px 8px rgba(0,0,0,.25);}
+.tb{padding:5px 11px;border-radius:4px;font-size:10px;cursor:pointer;border:none;background:transparent;color:var(--dim);transition:all .12s;}
+.tb:hover{background:var(--surface);}
+.tb.on2d{background:rgba(232,125,13,.18);color:#e87d0d;}
+.tb.on3d{background:rgba(50,120,200,.18);color:#5090e0;}
+.tb.onsearch{background:rgba(232,125,13,.15);color:#e87d0d;}
+.tb.locating{color:#e87d0d;animation:pulse 1s infinite;}
+.tb.locok{color:#2ea05a;}
+.tb.locerr{color:#c03030;}
+.tb.onplay{background:rgba(46,160,90,.18);color:#2ea05a;}
+/* ── SUN HOURS PANEL ── */
+#sunhours-panel{position:absolute;bottom:38px;right:10px;z-index:6;background:var(--panel);border:0.5px solid var(--border);border-radius:10px;padding:12px 14px 10px;width:224px;box-shadow:0 4px 18px rgba(0,0,0,.35);display:none;}
+#sunhours-panel.open{display:block;}
+#sh-title{font-size:10px;font-weight:600;color:var(--text);margin-bottom:2px;}
+#sh-sub{font-size:9px;color:var(--dim);margin-bottom:8px;}
+#sh-canvas{width:100%;height:60px;display:block;border-radius:4px;cursor:default;}
+#sh-close{position:absolute;top:8px;right:10px;background:none;border:none;color:var(--dim);font-size:13px;cursor:pointer;line-height:1;padding:0;}
+#sh-close:hover{color:var(--text);}
+#sh-total{font-size:11px;color:#e87d0d;font-weight:600;margin-top:6px;}
+#sh-hint{font-size:9px;color:var(--dim);margin-top:2px;}
+/* ── MENÚ CONTEXTUAL ── */
+#ctx-menu{position:absolute;z-index:30;background:var(--panel);border:0.5px solid var(--border);border-radius:10px;padding:5px;min-width:200px;box-shadow:0 8px 28px rgba(0,0,0,.45);display:none;}
+#ctx-menu.open{display:block;}
+.ctx-item{display:flex;align-items:center;gap:10px;padding:9px 13px;border-radius:6px;font-size:11px;color:var(--text);cursor:pointer;transition:background .12s;border:none;background:transparent;width:100%;text-align:left;}
+.ctx-item:hover{background:var(--surface);}
+.ctx-item .ctx-icon{font-size:15px;width:20px;text-align:center;flex-shrink:0;}
+.ctx-item .ctx-label{flex:1;font-weight:500;}
+.ctx-item .ctx-sub{font-size:9px;color:var(--dim);display:block;margin-top:1px;}
+.ctx-sep{height:0.5px;background:var(--border);margin:4px 8px;}
+/* ── COMPARTIR PANEL ── */
+#share-panel{position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:50;display:none;align-items:flex-end;justify-content:center;padding-bottom:0;}
+#share-panel.open{display:flex;}
+#share-box{background:var(--panel);border-radius:16px 16px 0 0;padding:20px 18px 32px;width:100%;max-width:420px;box-shadow:0 -8px 32px rgba(0,0,0,.5);}
+#share-box h4{font-size:13px;font-weight:700;color:var(--text);margin-bottom:14px;display:flex;align-items:center;gap:8px;}
+.share-row{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-bottom:0;}
+.share-btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:14px 10px;border-radius:10px;border:0.5px solid var(--border);background:var(--surface);cursor:pointer;font-size:10px;color:var(--muted);transition:all .15s;}
+.share-btn:hover{border-color:#e87d0d;color:#e87d0d;}
+.share-btn .sb-icon{font-size:22px;}
+.share-btn .sb-label{font-weight:600;color:var(--text);font-size:10px;}
+.share-btn .sb-desc{font-size:9px;color:var(--dim);text-align:center;line-height:1.4;}
+#share-close{position:absolute;top:16px;right:18px;background:none;border:none;font-size:18px;color:var(--dim);cursor:pointer;}
+#share-status{font-size:10px;color:var(--dim);text-align:center;margin-top:10px;min-height:14px;}
+
+@media(max-width:768px){
+  #sunhours-panel{bottom:auto;top:54px;right:8px;width:200px;}
+  #panel{transition:none!important;}
+  #panel.mob-anim{transition:height .22s cubic-bezier(.4,0,.2,1)!important;}
+}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── SEARCH OVERLAY ── */
+#search-overlay{position:absolute;top:46px;left:50%;transform:translateX(-50%);z-index:6;width:280px;max-width:90vw;}
+#srch{width:100%;background:var(--panel);border:0.5px solid var(--border);border-radius:7px;padding:7px 12px;color:var(--text);font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.3);outline:none;}
+#srch:focus{border-color:rgba(232,125,13,.5);}
+#srch::placeholder{color:var(--dim);}
+#sres{background:var(--panel);border:0.5px solid var(--border);border-radius:7px;margin-top:3px;overflow:hidden;display:none;box-shadow:0 4px 12px rgba(0,0,0,.3);}
+.sresrow{padding:7px 12px;font-size:11px;cursor:pointer;color:var(--muted);border-bottom:0.5px solid var(--surface);}
+.sresrow:hover{background:var(--surface);color:var(--text);}
+.sresrow:last-child{border-bottom:none;}
+
+/* ── PANEL TOGGLE (desktop) ── */
+#panel-toggle{position:absolute;top:50%;left:0;transform:translateY(-50%);z-index:11;width:18px;height:44px;background:var(--panel);border:0.5px solid var(--border);border-left:none;border-radius:0 6px 6px 0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted);transition:background .2s;box-shadow:2px 0 6px rgba(0,0,0,.15);}
+#panel-toggle:hover{background:var(--surface);}
+
+/* ── MAP OVERLAYS ── */
+#compass{position:absolute;top:50px;right:10px;width:50px;height:50px;background:var(--panel);border:0.5px solid var(--border);border-radius:50%;z-index:5;display:none;overflow:hidden;}
+#compass svg{position:absolute;inset:0;width:100%;height:100%;overflow:hidden;}
+#leg{position:absolute;bottom:30px;left:10px;background:var(--panel);border:0.5px solid var(--border);border-radius:6px;padding:6px 9px;z-index:5;font-size:9px;color:var(--muted);}
+#leg div{display:flex;align-items:center;gap:4px;margin-bottom:2px;}
+#leg div:last-child{margin-bottom:0;}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+#statusbar{position:absolute;bottom:0;left:0;right:0;background:var(--panel);border-top:0.5px solid var(--border);padding:3px 10px;z-index:5;font-size:9px;color:var(--dim);opacity:.9;}
+
+/* ── WEATHER BUBBLE (map overlay) ── */
+#wxbubble{position:absolute;top:10px;left:10px;z-index:5;background:var(--panel);border:0.5px solid var(--border);border-radius:20px;padding:5px 11px 5px 8px;display:none;flex-direction:row;align-items:center;gap:7px;box-shadow:0 2px 8px rgba(0,0,0,.2);transition:background .3s,border-color .3s;}
+#wxb-top{display:contents;} /* desktop: icon+temp flow inline */
+#wxb-icon{font-size:16px;line-height:1;}
+#wxb-temp{font-size:14px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--text);}
+.wxb-sep{width:0.5px;height:18px;background:var(--border);flex-shrink:0;}
+.wxb-mini{font-size:9px;color:var(--muted);line-height:1.55;white-space:pre;}
+
+/* ── NOTIFICATION STACK ── */
+#notif-stack{position:absolute;bottom:52px;left:50%;transform:translateX(-50%);z-index:7;display:flex;flex-direction:column;align-items:center;gap:5px;pointer-events:none;}
+#lodbar{background:var(--panel);border:0.5px solid var(--border);border-radius:18px;padding:5px 12px;font-size:10px;color:var(--muted);display:none;white-space:nowrap;pointer-events:auto;}
+.notif{background:var(--panel);border:0.5px solid var(--border);border-radius:18px;padding:6px 14px;font-size:10px;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.22);display:flex;align-items:center;gap:7px;animation:notif-in .2s ease;pointer-events:auto;}
+@keyframes notif-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.notif-dot{width:7px;height:7px;border-radius:50%;background:var(--dim);flex-shrink:0;}
+.notif.locating .notif-dot{background:#e87d0d;animation:pulse 1s infinite;}
+.notif.locok .notif-dot{background:#2ea05a;}
+.notif.locerr .notif-dot{background:#c03030;}
+.notif-txt{color:var(--muted);}
+.notif.locating .notif-txt{color:var(--text);}
+.notif.locok .notif-txt{color:#2ea05a;}
+[data-theme="dark"] .notif.locok .notif-txt{color:#6ee7a8;}
+.notif.locerr .notif-txt{color:#c03030;}
+
+/* ── POPUP ── */
+.h-popup{background:var(--panel);border:0.5px solid var(--border);border-radius:7px;padding:9px 11px;font-size:11px;min-width:140px;}
+.h-popup strong{display:block;font-size:12px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.h-popup .hp-row{display:flex;justify-content:space-between;color:var(--muted);margin-bottom:2px;gap:10px;}
+.h-popup .hp-src{font-size:9px;margin-top:4px;padding-top:4px;border-top:0.5px solid var(--surface);color:#2ea05a;font-weight:500;}
+[data-theme="dark"] .h-popup .hp-src{color:#6ee7a8;}
+.maplibregl-popup-content{padding:0!important;border-radius:7px!important;box-shadow:none!important;}
+
+/* ── MOBILE ── */
+@media(max-width:768px){
+  #app{grid-template-columns:1fr;grid-template-rows:1fr auto;}
+  #mapwrap{grid-column:1;grid-row:1;}
+  #panel{grid-column:1;grid-row:2;border-right:none;border-top:0.5px solid var(--border);flex-direction:column;height:42vh;max-height:42vh;transition:max-height .32s cubic-bezier(.4,0,.2,1),height .32s cubic-bezier(.4,0,.2,1);}
+  #panel.mob-collapsed{max-height:80px;height:80px;overflow:hidden;}
+  #panel-toggle{display:none;}
+  #mob-handle{display:flex!important;flex-direction:column;align-items:stretch;flex-shrink:0;cursor:grab;user-select:none;}
+  #mob-handle:active{cursor:grabbing;}
+  #mob-pill-row{display:flex;justify-content:center;padding:6px 0 4px;}
+  #mob-pill{width:36px;height:4px;border-radius:2px;background:var(--border);}
+  #mob-slider-row{display:flex;align-items:center;gap:8px;padding:0 10px 8px;}
+  #mob-timemini{font-size:13px;font-weight:500;font-variant-numeric:tabular-nums;color:var(--text);white-space:nowrap;min-width:36px;cursor:pointer;user-select:none;transition:color .15s;}
+  #mob-timemini:hover{color:#e87d0d;}
+  #tsl-mob{flex:1;margin:0;}
+  #panel-tabs{flex-shrink:0;}
+  #wxbubble{display:flex!important;top:10px;left:10px;flex-direction:column;align-items:flex-start;gap:3px;border-radius:12px;padding:7px 10px;}
+  #wxb-top{display:flex;align-items:center;gap:6px;}
+  .wxb-sep{display:none;}
+  .wxb-mini{line-height:1.7;}
+  #shcanvas{display:none!important;will-change:auto;}
+  .maplibregl-ctrl-bottom-right{bottom:22px!important;}
+}
+/* Hide mob-handle on desktop */
+#mob-handle{display:none;}
+
+/* ── FAVORITOS ── */
+.fav-item{display:flex;align-items:center;gap:8px;padding:8px 9px;background:var(--surface);border-radius:7px;border:0.5px solid var(--border);margin-bottom:6px;transition:border-color .15s;}
+.fav-item:hover{border-color:rgba(232,125,13,.5);}
+.fav-body{flex:1;min-width:0;cursor:pointer;}
+.fav-name{font-size:10px;font-weight:500;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-bottom:2px;}
+.fav-meta{font-size:9px;color:var(--dim);font-family:monospace;}
+.fav-go{font-size:13px;cursor:pointer;flex-shrink:0;opacity:.7;line-height:1;width:22px;height:22px;display:flex;align-items:center;justify-content:center;border-radius:4px;transition:all .12s;}
+.fav-go:hover{opacity:1;background:var(--border);color:var(--text);}
+.fav-actions{display:flex;gap:3px;flex-shrink:0;align-items:center;}
+.fav-btn-ic{width:22px;height:22px;border-radius:4px;border:none;background:transparent;color:var(--dim);cursor:pointer;font-size:11px;flex-shrink:0;display:flex;align-items:center;justify-content:center;padding:0;transition:all .12s;}
+.fav-btn-ic:hover{background:var(--border);color:var(--text);}
+.fav-del-confirm{background:rgba(200,50,50,.18)!important;color:#e04040!important;font-size:9px!important;width:auto!important;padding:0 5px!important;white-space:nowrap;}
+.fav-name-input{width:100%;background:var(--bg);border:0.5px solid #e87d0d;border-radius:4px;padding:2px 5px;color:var(--text);font-size:10px;font-weight:500;outline:none;margin-bottom:2px;}
+#fav-add-btn{width:100%;padding:8px;border-radius:7px;border:0.5px dashed var(--border);background:transparent;color:var(--muted);font-size:10px;cursor:pointer;transition:all .15s;margin-bottom:10px;}
+#fav-add-btn:hover{border-color:#e87d0d;color:#e87d0d;background:rgba(232,125,13,.06);}
+#fav-add-btn:active{transform:scale(.98);}
+.fav-empty{text-align:center;padding:28px 12px 16px;color:var(--dim);font-size:10px;line-height:1.7;}
+.fav-empty-icon{font-size:26px;margin-bottom:6px;opacity:.5;}
+.fav-counter{font-size:9px;color:var(--dim);text-align:right;margin-bottom:8px;font-variant-numeric:tabular-nums;}
+.fav-warn{font-size:9px;color:var(--dim);background:var(--surface);border-radius:6px;padding:7px 9px;border:0.5px solid var(--border);line-height:1.55;margin-top:4px;}
+.fav-warn strong{display:block;font-size:9px;color:var(--muted);margin-bottom:2px;}
+/* Burbuja de guardado */
+#save-bubble{position:absolute;background:#2ea05a;color:#fff;font-size:10px;font-weight:500;padding:5px 11px;border-radius:20px;pointer-events:none;white-space:nowrap;box-shadow:0 3px 10px rgba(0,0,0,.3);opacity:0;transform:translateY(0);transition:none;z-index:20;}
+#save-bubble.pop{animation:bubble-up .7s ease forwards;}
+@keyframes bubble-up{0%{opacity:0;transform:translateY(4px)}15%{opacity:1;transform:translateY(-8px)}70%{opacity:1;transform:translateY(-14px)}100%{opacity:0;transform:translateY(-22px)}}
+
+/* ── BEACON ANIMACIÓN AL IR A FAVORITO ── */
+#map-beacon{position:absolute;z-index:6;pointer-events:none;display:none;transform:translate(-50%,-50%);}
+/* 2D ripple rings */
+.beacon-ring{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;border:2px solid rgba(232,125,13,0.85);opacity:0;animation:ring-expand 1.8s ease-out forwards;}
+.beacon-ring.r2{animation-delay:.5s;}
+.beacon-ring.r3{animation-delay:1s;}
+.beacon-dot{position:absolute;left:50%;top:50%;width:10px;height:10px;border-radius:50%;background:#e87d0d;transform:translate(-50%,-50%);box-shadow:0 0 8px 3px rgba(232,125,13,.4);animation:dot-fade 3s ease-out forwards;}
+@keyframes ring-expand{0%{width:0;height:0;opacity:.85}100%{width:100px;height:100px;opacity:0}}
+@keyframes dot-fade{0%,40%{opacity:1}100%{opacity:0}}
+/* 3D beam */
+.beacon-beam{position:absolute;left:50%;bottom:0;transform:translateX(-50%);width:5px;border-radius:3px 3px 0 0;background:linear-gradient(to top,rgba(80,220,255,.95),rgba(80,220,255,0));animation:beam-rise 3s ease-out forwards;}
+.beacon-halo{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);border-radius:50%;background:rgba(80,220,255,.2);border:1.5px solid rgba(80,220,255,.7);animation:halo-pulse 3s ease-out forwards;}
+@keyframes beam-rise{0%{height:0;opacity:1}60%{height:160px;opacity:.8}100%{height:180px;opacity:0}}
+@keyframes halo-pulse{0%{width:0;height:0;opacity:1}50%{width:28px;height:28px;opacity:.6}100%{width:44px;height:44px;opacity:0}}
+/* Long-press indicator: filling circle */
+#lp-ring{position:absolute;z-index:7;pointer-events:none;display:none;transform:translate(-50%,-50%);width:56px;height:56px;}
+@keyframes lp-stroke{to{stroke-dashoffset:0}}
+/* Drop pin marker */
+.drop-pin-el{font-size:28px;line-height:1;filter:drop-shadow(0 3px 5px rgba(0,0,0,.45));animation:pin-drop .35s cubic-bezier(.3,1.6,.5,1) forwards;}
+@keyframes pin-drop{from{transform:translateY(-18px);opacity:0}to{transform:translateY(0);opacity:1}}
+/* Suprimir fondo rojo del marcador por defecto de MapLibre en pins personalizados */
+.maplibregl-marker{background:none!important;}
+
+/* ── MODO VÍDEO: ocultar UI durante grabación/preparación ── */
+body.video-mode #toolbar,body.video-mode #panel,body.video-mode #panel-toggle,
+body.video-mode #wxbubble,body.video-mode #leg,body.video-mode #statusbar,
+body.video-mode #notif-stack,body.video-mode #compass,body.video-mode .maplibregl-ctrl-bottom-right{
+  opacity:0;pointer-events:none;transition:opacity .3s;}
+body.video-mode #rec-indicator{z-index:30;}
+body.video-mode #video-banner{z-index:30;}
+/* ── VÍDEO BANNER (no bloquea el mapa) ── */
+#video-banner{position:absolute;bottom:44px;left:50%;transform:translateX(-50%);z-index:12;
+  background:var(--panel);border:0.5px solid var(--border);border-radius:12px;
+  padding:12px 16px;width:300px;max-width:92vw;box-shadow:0 4px 20px rgba(0,0,0,.45);
+  display:none;text-align:center;}
+#video-banner.open{display:block;}
+#video-banner p{font-size:11px;color:var(--muted);line-height:1.55;margin-bottom:10px;}
+#video-banner strong{color:var(--text);}
+#video-banner .vbbtns{display:flex;gap:8px;justify-content:center;}
+.vcbtn{padding:7px 16px;border-radius:7px;font-size:10px;font-weight:600;cursor:pointer;border:0.5px solid var(--border);transition:all .15s;}
+.vcbtn.cancel{background:transparent;color:var(--muted);}
+.vcbtn.cancel:hover{background:var(--surface);color:var(--text);}
+.vcbtn.start{background:#e87d0d;border-color:#e87d0d;color:#fff;}
+.vcbtn.start:hover{background:#d06c00;}
+/* ── REC INDICATOR ── */
+#rec-indicator{position:absolute;top:12px;left:50%;transform:translateX(-50%);z-index:8;
+  background:rgba(15,20,32,.82);border-radius:20px;padding:5px 12px;
+  display:none;align-items:center;gap:7px;font-size:10px;color:#fff;font-weight:600;white-space:nowrap;}
+#rec-indicator.active{display:flex;}
+.rec-dot{width:8px;height:8px;border-radius:50%;background:#e03030;flex-shrink:0;
+  animation:rec-blink 1s ease-in-out infinite;}
+@keyframes rec-blink{0%,100%{opacity:1}50%{opacity:.2}}
+#rec-timer{font-variant-numeric:tabular-nums;}
+/* ── VÍDEO CONFIRM (legacy, kept for keyboard ESC) ── */
+#video-confirm{display:none;}
+
+/* ── PWA INSTALL BUTTON ── */
+#pwa-install-btn{display:none;align-items:center;gap:10px;padding:10px 13px;border-radius:8px;background:rgba(232,125,13,.12);border:0.5px solid rgba(232,125,13,.4);color:#e87d0d;font-size:10px;font-weight:600;cursor:pointer;width:100%;margin-bottom:10px;transition:all .15s;}
+#pwa-install-btn:hover{background:rgba(232,125,13,.2);}
+/* ── ONBOARDING TUTORIAL ── */
+#onboarding-overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);z-index:200;display:none;align-items:center;justify-content:center;padding:16px;}
+#onboarding-overlay.open{display:flex;}
+#onboarding-box{background:var(--panel);border:0.5px solid var(--border);border-radius:16px;width:310px;max-width:92vw;box-shadow:0 16px 48px rgba(0,0,0,.6);overflow:hidden;position:relative;}
+#onb-slides{display:flex;transition:transform .32s cubic-bezier(.4,0,.2,1);}
+.onb-slide{min-width:310px;max-width:92vw;padding:28px 24px 20px;box-sizing:border-box;}
+@media(max-width:360px){#onboarding-box,#onb-slides,.onb-slide{width:100%;min-width:0;}}
+.onb-icon{font-size:38px;margin-bottom:12px;line-height:1;}
+.onb-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:8px;}
+.onb-body{font-size:11px;color:var(--muted);line-height:1.65;}
+.onb-body strong{color:var(--text);}
+#onb-footer{display:flex;align-items:center;justify-content:space-between;padding:12px 20px 16px;border-top:0.5px solid var(--border);}
+#onb-dots{display:flex;gap:6px;align-items:center;}
+.onb-dot{width:6px;height:6px;border-radius:50%;background:var(--border);transition:all .2s;}
+.onb-dot.active{background:#e87d0d;width:18px;border-radius:3px;}
+#onb-btn-prev{padding:6px 14px;border-radius:6px;font-size:10px;font-weight:500;border:0.5px solid var(--border);background:transparent;color:var(--muted);cursor:pointer;transition:all .15s;}
+#onb-btn-prev:hover{background:var(--surface);color:var(--text);}
+#onb-btn-next{padding:7px 18px;border-radius:6px;font-size:10px;font-weight:600;border:none;background:#e87d0d;color:#fff;cursor:pointer;transition:background .15s;}
+#onb-btn-next:hover{background:#d06c00;}
+
+#fav-modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:100;display:none;align-items:center;justify-content:center;}
+#fav-modal-overlay.open{display:flex;}
+#fav-modal{background:var(--panel);border:0.5px solid var(--border);border-radius:12px;padding:20px 18px 16px;width:270px;max-width:92vw;box-shadow:0 12px 32px rgba(0,0,0,.5);}
+#fav-modal h4{font-size:13px;font-weight:600;color:var(--text);margin-bottom:12px;}
+#fav-modal-inp{width:100%;background:var(--bg);border:0.5px solid var(--border);border-radius:6px;padding:8px 10px;color:var(--text);font-size:11px;outline:none;margin-bottom:14px;transition:border-color .15s;}
+#fav-modal-inp:focus{border-color:#e87d0d;}
+#fav-modal-btns{display:flex;gap:7px;justify-content:flex-end;}
+.fav-modal-btn{padding:7px 16px;border-radius:6px;font-size:10px;font-weight:500;cursor:pointer;border:0.5px solid var(--border);transition:all .15s;}
+.fav-modal-btn.cancel{background:transparent;color:var(--muted);}
+.fav-modal-btn.cancel:hover{background:var(--surface);color:var(--text);}
+.fav-modal-btn.save{background:#e87d0d;border-color:#e87d0d;color:#fff;font-weight:700;}
+.fav-modal-btn.save:hover{background:#d06c00;border-color:#d06c00;}
+</style>
+</head>
+<body>
+<div id="app">
+
+<!-- ══ PANEL ══ -->
+<div id="panel">
+  <!-- Mobile swipe handle -->
+  <div id="mob-handle">
+    <div id="mob-pill-row"><div id="mob-pill"></div></div>
+    <div id="mob-slider-row">
+      <div id="mob-timemini" onclick="resetToNow()" title="Pulsa para volver a la hora actual">--:--</div>
+      <input type="range" min="0" max="1439" value="720" id="tsl-mob">
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div id="panel-tabs">
+    <button class="ptab active" id="tab-btn-info"     onclick="showTab('info')"     role="tab" aria-selected="true"  aria-controls="tab-info">☀️ Info</button>
+    <button class="ptab"        id="tab-btn-proyecto"  onclick="showTab('proyecto')" role="tab" aria-selected="false" aria-controls="tab-proyecto">ℹ️ Proyecto</button>
+    <button class="ptab"        id="tab-btn-tutorial"  onclick="showTab('tutorial')" role="tab" aria-selected="false" aria-controls="tab-tutorial">❓ Ayuda</button>
+    <button class="ptab"        id="tab-btn-favs"      onclick="showTab('favs')"     role="tab" aria-selected="false" aria-controls="tab-favs">⭐ Favs</button>
+  </div>
+  <div id="dsrc">Alturas: Ayto. Madrid dic.2025 · Clima: Open-Meteo</div>
+
+  <!-- Tab: Info -->
+  <div id="tab-info" class="tab-pane active">
+    <div id="pscroll">
+      <p class="logo">Shadow<span>Map</span> <span style="font-size:10px;font-weight:400;color:var(--dim);margin-left:2px;">Madrid</span></p>
+      <p class="subloc" id="subloc-txt">Madrid, España</p>
+      <p class="lbl">Hora local</p>
+      <div id="tbig" onclick="resetToNow()" title="Pulsa para volver a la hora actual">--:--</div>
+      <div id="sunst">—</div>
+      <input type="range" min="0" max="1439" value="720" id="tsl">
+      <canvas id="wsc" height="10"></canvas>
+      <div class="stlbls"><span id="srlbl">Amanecer</span><span id="sslbl">Atardecer</span></div>
+      <div id="nightbanner">
+        <div class="nb-icon">🌙</div>
+        <div class="nb-title">Noche — sin luz solar directa</div>
+        <div class="nb-sub">Sombras solo con el sol por encima del horizonte.</div>
+        <div class="nb-times">
+          <div class="nb-t"><div class="nb-tl">Amanecer</div><div class="nb-tv" id="nb-sr">—</div></div>
+          <div class="nb-t"><div class="nb-tl">Atardecer</div><div class="nb-tv" id="nb-ss">—</div></div>
+        </div>
+      </div>
+      <div id="twibanner"><p>🌅 Crepúsculo — sombras muy largas</p><p>Sol a menos de 4°, sombras limitadas a 300 m.</p></div>
+      <p class="lbl">Datos de edificios</p>
+      <div id="src-badge">
+        <div class="sb-dot" id="sb-dot"></div>
+        <div class="sb-text" id="sb-text">Cargando…</div>
+        <div class="sb-n" id="sb-n"></div>
+      </div>
+      <p class="lbl">Fecha</p>
+      <input type="date" id="din">
+      <p class="lbl">Posición solar</p>
+      <div class="sgrid4">
+        <div class="sc"><div class="sc-l">Azimut</div><div class="sc-v" id="staz">—</div></div>
+        <div class="sc"><div class="sc-l">Elevación</div><div class="sc-v" id="stel">—</div></div>
+        <div class="sc"><div class="sc-l">Amanecer</div><div class="sc-v" id="stsr">—</div></div>
+        <div class="sc"><div class="sc-l">Atardecer</div><div class="sc-v" id="stss">—</div></div>
+      </div>
+      <p class="lbl">Índice UV & Protección</p>
+      <div id="uvcard">
+        <div class="uvrow"><div id="uvnum">--</div><div><div id="uvbadge">--</div><div id="uvspf">--</div></div></div>
+        <div class="uvbar"><div id="uvcur"></div></div>
+        <p id="uvtip">Cargando datos meteorológicos…</p>
+      </div>
+      <p class="lbl">Tiempo actual</p>
+      <div id="wxcard">
+        <div class="wxrow">
+          <span id="wxicon">--</span>
+          <div id="wxtemp">--°</div>
+          <div><div id="wxdesc">Cargando…</div><div id="wxsub">--</div></div>
+        </div>
+        <div class="wxg">
+          <div><p class="wx-l">Nubes</p><p class="wx-v" id="wx-nubes">--%</p></div>
+          <div><p class="wx-l">Precip.</p><p class="wx-v" id="wx-prec">-- mm</p></div>
+        </div>
+      </div>
+      <p class="lbl">Previsión 7 días</p>
+      <div id="fcast"></div>
+    </div>
+  </div><!-- /tab-info -->
+
+  <!-- Tab: Proyecto -->
+  <div id="tab-proyecto" class="tab-pane">
+    <div class="tab-scroll">
+      <button id="pwa-install-btn" onclick="pwaInstall()">
+        <span style="font-size:18px">📲</span>
+        <span>Instalar ShadowMap en tu dispositivo</span>
+      </button>
+      <h3>Sobre ShadowMap</h3>
+      <p>ShadowMap calcula y visualiza las sombras proyectadas por los edificios de Madrid en tiempo real, para cualquier hora del día y época del año.</p>
+      <p>Las sombras se calculan con geometría solar precisa (azimut y elevación reales) y la geometría 3D de cada edificio.</p>
+      <h3>Fuentes de datos</h3>
+      <div class="credit-row">
+        <div class="credit-icon">🏛</div>
+        <div class="credit-text"><strong>Geometría de edificios</strong>Ayuntamiento de Madrid — Catálogo de edificios, diciembre 2025. Coordenadas oficiales WGS84.</div>
+      </div>
+      <div class="credit-row">
+        <div class="credit-icon">🌤</div>
+        <div class="credit-text"><strong>Datos meteorológicos</strong><a href="https://open-meteo.com" target="_blank">Open-Meteo</a> — API abierta de previsión meteorológica. Sin límite de uso.</div>
+      </div>
+      <div class="credit-row">
+        <div class="credit-icon">🗺</div>
+        <div class="credit-text"><strong>Cartografía base</strong>Modo oscuro: <a href="https://carto.com" target="_blank">CARTO Dark Matter</a>. Modo claro: <a href="https://openfreemap.org" target="_blank">OpenFreeMap Liberty</a>. Motor: <a href="https://maplibre.org" target="_blank">MapLibre GL JS</a>.</div>
+      </div>
+      <div class="credit-row">
+        <div class="credit-icon">🔭</div>
+        <div class="credit-text"><strong>Cálculo solar</strong>Algoritmo de posición solar basado en la ecuación del tiempo (NOAA). Precisión &lt;0.1° para latitudes medias.</div>
+      </div>
+      <h3>Limitaciones</h3>
+      <p>Los datos de alturas corresponden a las plantas registradas en diciembre de 2025. Edificios en construcción o reformas recientes pueden no estar actualizados.</p>
+      <p>Las sombras son proyecciones geométricas ideales: no se modelan reflexiones, vegetación ni pendientes del terreno.</p>
+      <h3>Notas de versión</h3>
+      <div id="changelog">
+        <div class="credit-row">
+          <div class="credit-icon">🆕</div>
+          <div class="credit-text"><strong>v18 — 21 de abril de 2026</strong>Tutorial de bienvenida. Pin por pulsación larga (móvil) o clic derecho (escritorio). Beacon animado al ir a favorito. Reloj pulsable para volver a hora actual. Contraste mejorado. Favoritos con nombre editable antes de guardar. \n Próximamente intentaré añadir la topografía real del terreno.</div>
+        </div>
+      </div>
+    </div>
+  </div><!-- /tab-proyecto -->
+
+  <!-- Tab: Tutorial -->
+  <div id="tab-tutorial" class="tab-pane">
+    <div class="tab-scroll">
+      <div class="tut-step">
+        <div class="tut-num">1</div>
+        <div class="tut-body"><strong>Navega por el mapa</strong><span>Arrastra para moverte. Usa la rueda o pellizca para hacer zoom. La app carga automáticamente los edificios de la zona visible.</span></div>
+      </div>
+      <div class="tut-step">
+        <div class="tut-num">2</div>
+        <div class="tut-body"><strong>Ajusta la hora</strong><span>Mueve el deslizador de tiempo para ver cómo cambian las sombras a lo largo del día. El trazo naranja muestra la posición actual.</span></div>
+      </div>
+      <div class="tut-step">
+        <div class="tut-num">3</div>
+        <div class="tut-body"><strong>Cambia la fecha</strong><span>Elige cualquier fecha para comparar sombras en distintas estaciones. En invierno el sol es más bajo y las sombras más largas.</span></div>
+      </div>
+      <div class="tut-step">
+        <div class="tut-num">4</div>
+        <div class="tut-body"><strong>Modo 3D</strong><span>Pulsa el botón 3D en la barra superior. Los edificios se muestran en perspectiva con sus alturas reales. Mantén Ctrl + arrastra para rotar la cámara.</span></div>
+      </div>
+      <div class="tut-step">
+        <div class="tut-num">5</div>
+        <div class="tut-body"><strong>Busca una dirección</strong><span>Pulsa el icono 🔍 en la barra superior para buscar cualquier calle o lugar de Madrid y saltar directamente a ese punto.</span></div>
+      </div>
+      <div class="tut-step">
+        <div class="tut-num">6</div>
+        <div class="tut-body"><strong>Haz clic en un edificio (3D)</strong><span>En modo 3D, toca cualquier edificio para ver su altura y la longitud estimada de su sombra en el momento seleccionado.</span></div>
+      </div>
+      <div class="tut-step">
+        <div class="tut-num">7</div>
+        <div class="tut-body"><strong>Modo claro / oscuro</strong><span>Usa el botón ☀️/🌙 para cambiar el estilo del mapa. Las sombras y edificios conservan siempre el mismo aspecto.</span></div>
+      </div>
+      <div class="tut-step">
+        <div class="tut-num">8</div>
+        <div class="tut-body"><strong>Guardar punto exacto (móvil)</strong><span>Mantén el dedo pulsado sobre cualquier punto del mapa durante ~1 segundo. Aparecerá un anillo naranja que se rellena y, al completarse, clavará un marcador que podrás guardar como favorito con el nombre que quieras.</span></div>
+      </div>
+      <div class="tut-step">
+        <div class="tut-num">9</div>
+        <div class="tut-body"><strong>Guardar punto exacto (escritorio)</strong><span>Haz clic derecho sobre cualquier punto del mapa para fijar un marcador y guardarlo como favorito.</span></div>
+      </div>
+      <div class="tut-step">
+        <div class="tut-num">10</div>
+        <div class="tut-body"><strong>Volver a la hora actual</strong><span>Pulsa sobre el reloj (la hora grande en el panel o el mini-reloj en móvil) para restablecer la hora a la hora real del momento.</span></div>
+      </div>
+      <div style="margin-top:14px;padding-top:12px;border-top:0.5px solid var(--border);text-align:center;">
+        <button onclick="maybeShowOnboarding(true)" style="background:var(--surface);border:0.5px solid var(--border);border-radius:7px;padding:8px 18px;font-size:10px;color:var(--muted);cursor:pointer;transition:all .15s;" onmouseover="this.style.borderColor='#e87d0d';this.style.color='#e87d0d'" onmouseout="this.style.borderColor='';this.style.color=''">🔁 Volver a ver el tutorial</button>
+      </div>
+    </div>
+  </div><!-- /tab-tutorial -->
+
+  <!-- Tab: Favoritos -->
+  <div id="tab-favs" class="tab-pane">
+    <div class="tab-scroll" id="fav-scroll">
+      <button id="fav-add-btn" onclick="openFavModal()">⭐ Guardar ubicación actual</button>
+      <div id="fav-counter" class="fav-counter"></div>
+      <div id="fav-list"></div>
+      <div class="fav-warn">
+        <strong>⚠ Nota sobre almacenamiento</strong>
+        Los favoritos se guardan en el caché local del navegador (localStorage). Si limpias los datos del sitio o el caché del navegador, se borrarán también.
+      </div>
+    </div>
+  </div><!-- /tab-favs -->
+
+</div><!-- /panel -->
+
+<!-- ══ MAP ══ -->
+<div id="mapwrap">
+  <div id="panel-toggle" onclick="togglePanel()" title="Ocultar/mostrar panel">‹</div>
+  <div id="map"></div>
+  <canvas id="shcanvas"></canvas>
+  <div id="map-beacon"></div>
+  <div id="lp-ring"></div>
+  <div id="maptwi"></div>
+  <div id="mapnight">
+    <div id="mapnight-inner">
+      <div class="mn-icon">🌙</div>
+      <div class="mn-title">Es de noche</div>
+      <div class="mn-sub" id="mn-sub">Mueve el slider hacia las horas del día</div>
+    </div>
+  </div>
+
+  <!-- Weather bubble -->
+  <div id="wxbubble">
+    <div id="wxb-top">
+      <div id="wxb-icon">--</div>
+      <div id="wxb-temp">--°</div>
+    </div>
+    <div class="wxb-mini" id="wxb-mini">--</div>
+  </div>
+
+  <!-- Floating search -->
+  <div id="search-overlay" style="display:none">
+    <input type="text" id="srch" placeholder="Buscar en Madrid…" autocomplete="off">
+    <div id="sres"></div>
+  </div>
+
+  <div id="notif-stack">
+    <div id="lodbar">Acércate más para ver sombras (zoom 16+)</div>
+  </div>
+
+  <div id="toolbar">
+    <div id="toolbar-inner">
+      <button class="tb on2d" id="btn2d" onclick="setMode('2d')" aria-label="Modo 2D" title="Vista 2D">2D</button>
+      <button class="tb"      id="btn3d" onclick="setMode('3d')" aria-label="Modo 3D" title="Vista 3D">3D</button>
+      <button class="tb"             onclick="resetCam()" aria-label="Resetear cámara" title="Resetear cámara">↺</button>
+      <button class="tb"      id="play-btn"   onclick="togglePlay()" aria-label="Reproducir día" title="Reproducir animación del día">▶</button>
+      <button class="tb"      id="search-btn" onclick="toggleSearch()" aria-label="Buscar lugar" title="Buscar lugar">🔍</button>
+      <button class="tb"      id="loc-btn"    onclick="requestLocation()" aria-label="Mi ubicación" title="Centrar en mi ubicación">📍</button>
+      <button class="tb"      id="fav-btn"    onclick="openFavModal()" aria-label="Guardar ubicación en favoritos" title="Guardar ubicación favorita">☆</button>
+      <button class="tb" id="theme-btn"       onclick="toggleTheme()" aria-label="Cambiar tema claro/oscuro" title="Modo claro/oscuro">☀️</button>
+    </div>
+    <div id="save-bubble">⭐ Guardado</div>
+  </div>
+
+  <div id="compass" role="img" aria-label="Brújula con posición del sol">
+    <svg viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg" style="overflow:hidden;width:100%;height:100%">
+      <!-- Todo el contenido gira con el bearing: rosa completa + sol + sombra -->
+      <g id="compass-dial" transform="rotate(0 25 25)">
+        <text x="25" y="8"  text-anchor="middle" font-size="7" fill="var(--muted)" font-family="monospace">N</text>
+        <text x="25" y="47" text-anchor="middle" font-size="7" fill="var(--muted)" font-family="monospace">S</text>
+        <text x="6"  y="28" text-anchor="middle" font-size="7" fill="var(--muted)" font-family="monospace">O</text>
+        <text x="44" y="28" text-anchor="middle" font-size="7" fill="var(--muted)" font-family="monospace">E</text>
+        <circle cx="25" cy="25" r="12" fill="none" stroke="var(--border)" stroke-width="0.5"/>
+        <line id="bl" x1="25" y1="25" x2="25" y2="13.5" stroke="#e03030" stroke-width="2" stroke-linecap="round"/>
+        <line x1="25" y1="25" x2="25" y2="36.5" stroke="var(--dim)" stroke-width="1" stroke-linecap="round"/>
+        <!-- Sol y sombra dentro del grupo: azimut absoluto, el grupo se encarga del bearing -->
+        <line id="sray" x1="25" y1="25" x2="25" y2="13" stroke="rgba(120,140,180,0.7)" stroke-width="1.4" stroke-dasharray="2,2.5" opacity="0"/>
+        <circle id="sdot" cx="25" cy="13" r="3" fill="#e87d0d" opacity="0"/>
+      </g>
+    </svg>
+  </div>
+  <div id="leg">
+    <div><div class="dot" style="background:rgba(232,125,13,.2);border:1px solid rgba(232,125,13,.7);"></div> Huella edificio</div>
+    <div><div class="dot" style="background:rgba(80,130,255,.55);"></div> Sombra proyectada</div>
+    <div><div class="dot" style="background:#2d6a42;"></div> Edificio 3D</div>
+    <div style="margin-top:3px;padding-top:3px;border-top:0.5px solid var(--surface);font-size:8px;color:var(--dim);">Ayto. Madrid · dic. 2025</div>
+  </div>
+  <div id="statusbar" role="status" aria-live="polite">Iniciando…</div>
+
+  <!-- Sun hours panel -->
+  <div id="sunhours-panel" role="dialog" aria-label="Horas de sol en este punto">
+    <button id="sh-close" onclick="closeSunHours()" aria-label="Cerrar panel de horas de sol">✕</button>
+    <div id="sh-title">☀ Horas de sol directas</div>
+    <div id="sh-sub">Hoy · punto seleccionado</div>
+    <canvas id="sh-canvas" aria-label="Gráfico de exposición solar por hora"></canvas>
+    <div id="sh-total"></div>
+    <div id="sh-hint">Pulsa en cualquier punto del mapa</div>
+  </div>
+</div><!-- /mapwrap -->
+
+<!-- ══ MENÚ CONTEXTUAL ══ -->
+<div id="ctx-menu" role="menu" aria-label="Opciones del punto">
+  <button class="ctx-item" onclick="ctxSaveFav()" role="menuitem">
+    <span class="ctx-icon">⭐</span>
+    <span class="ctx-label">Guardar en Favoritos<span class="ctx-sub">Guardar esta ubicación</span></span>
+  </button>
+  <button class="ctx-item" onclick="ctxSunHours()" role="menuitem">
+    <span class="ctx-icon">☀</span>
+    <span class="ctx-label">Horas de sol<span class="ctx-sub">Gráfica de exposición hoy</span></span>
+  </button>
+  <div class="ctx-sep"></div>
+  <button class="ctx-item" onclick="ctxShare()" role="menuitem">
+    <span class="ctx-icon">🔗</span>
+    <span class="ctx-label">Compartir<span class="ctx-sub">Enlace, imagen o vídeo</span></span>
+  </button>
+</div>
+
+<!-- ══ SHARE PANEL ══ -->
+<div id="share-panel" onclick="if(event.target===this)closeSharePanel()">
+  <div id="share-box" style="position:relative;">
+    <button id="share-close" onclick="closeSharePanel()" aria-label="Cerrar panel">✕</button>
+    <h4>📤 Compartir este momento</h4>
+    <div class="share-row">
+      <button class="share-btn" onclick="closeSharePanel();shareLink()">
+        <span class="sb-icon">🔗</span>
+        <span class="sb-label">Copiar enlace</span>
+        <span class="sb-desc">URL con hora, fecha y posición</span>
+      </button>
+      <button class="share-btn" id="sbtn-image" onclick="closeSharePanel();shareImageBtn(this)">
+        <span class="sb-icon">📸</span>
+        <span class="sb-label">Infografía</span>
+        <span class="sb-desc">Mapa + sombras + gráfica de sol</span>
+      </button>
+      <button class="share-btn" id="sbtn-chart" onclick="closeSharePanel();shareChartBtn(this)">
+        <span class="sb-icon">📊</span>
+        <span class="sb-label">Gráfica</span>
+        <span class="sb-desc">Solo la gráfica de horas de sol</span>
+      </button>
+      <button class="share-btn" onclick="shareVideo()">
+        <span class="sb-icon">🎬</span>
+        <span class="sb-label">Vídeo del día</span>
+        <span class="sb-desc">Amanecer → anochecer en .webm</span>
+      </button>
+    </div>
+    <div id="share-status"></div>
+  </div>
+</div>
+
+<!-- ══ MODAL NOMBRE FAVORITO ══ -->
+<div id="fav-modal-overlay" onclick="if(event.target===this)cancelFavModal()">
+  <div id="fav-modal">
+    <h4>⭐ Guardar ubicación</h4>
+    <input type="text" id="fav-modal-inp" maxlength="60" placeholder="Nombre de la ubicación">
+    <div id="fav-modal-btns">
+      <button class="fav-modal-btn cancel" onclick="cancelFavModal()">Cancelar</button>
+      <button class="fav-modal-btn save" onclick="confirmFavModal()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+  <!-- Indicador de grabación -->
+  <div id="rec-indicator">
+    <div class="rec-dot"></div>
+    <span>REC</span>
+    <span id="rec-timer">00:00</span>
+  </div>
+
+  <!-- Banner vídeo (no bloquea el mapa) -->
+  <div id="video-banner">
+    <p>📷 <strong>Coloca la cámara</strong> al ángulo y zoom que quieras.<br>Elige el modo:</p>
+    <div class="vbbtns">
+      <button class="vcbtn cancel" onclick="closeVideoBanner()">Cancelar</button>
+      <button class="vcbtn start" onclick="startVideoRecording('static')" title="Ángulo fijo durante la grabación" style="font-size:9px;padding:6px 12px;">🔒 Estático</button>
+      <button class="vcbtn start" onclick="startVideoRecording('dynamic')" title="Puedes mover el mapa mientras graba" style="font-size:9px;padding:6px 12px;">🎮 Dinámico</button>
+    </div>
+  </div>
+
+  <!-- Legacy: kept so JS references don't break -->
+  <div id="video-confirm"></div>
+<div id="onboarding-overlay">
+  <div id="onboarding-box">
+    <div id="onb-slides">
+      <div class="onb-slide">
+        <div class="onb-icon">🌤</div>
+        <div class="onb-title">Bienvenido/a a ShadowMap</div>
+        <div class="onb-body">Visualiza en tiempo real las <strong>sombras que proyectan los edificios de Madrid</strong> según la hora del día y la época del año.</div>
+      </div>
+      <div class="onb-slide">
+        <div class="onb-icon">🕐</div>
+        <div class="onb-title">Controla la hora</div>
+        <div class="onb-body">Mueve el <strong>deslizador de tiempo</strong> para ver cómo cambian las sombras a lo largo del día. Pulsa el reloj para volver a la hora actual.</div>
+      </div>
+      <div class="onb-slide">
+        <div class="onb-icon">🗺</div>
+        <div class="onb-title">Navega por el mapa</div>
+        <div class="onb-body">Arrastra para moverte. Pellizca o usa la rueda para hacer <strong>zoom</strong>. La app carga los edificios automáticamente cuando te acercas suficiente.</div>
+      </div>
+      <div class="onb-slide">
+        <div class="onb-icon">🌍</div>
+        <div class="onb-title">Tu ubicación</div>
+        <div class="onb-body">Pulsa el botón <strong>📍 de la barra superior</strong> para centrar el mapa en tu posición real. En móvil, <strong>mantén pulsado ~1 s</strong> sobre cualquier punto del mapa para fijar un marcador en ese lugar exacto. En escritorio, usa el <strong>clic derecho</strong>.</div>
+      </div>
+      <div class="onb-slide">
+        <div class="onb-icon">⭐</div>
+        <div class="onb-title">Guarda tus lugares</div>
+        <div class="onb-body">Pulsa <strong>☆</strong> en la barra para guardar el centro actual, o fija un pin para guardar un punto concreto. Accede a tus favoritos desde la pestaña <strong>⭐ Favs</strong>, donde puedes ir, renombrar o borrar cada uno.</div>
+      </div>
+      <div class="onb-slide">
+        <div class="onb-icon">🏙</div>
+        <div class="onb-title">Modo 2D y 3D</div>
+        <div class="onb-body">Cambia entre <strong>2D y 3D</strong> desde la barra superior. En 3D verás los edificios con sus alturas reales. Toca cualquier edificio para ver su sombra estimada. Consulta más ayuda en la pestaña <strong>❓ Ayuda</strong>.</div>
+      </div>
+    </div>
+    <div id="onb-footer">
+      <div id="onb-dots"></div>
+      <div style="display:flex;gap:8px;align-items:center;">
+        <button id="onb-btn-prev" onclick="onbPrev()">Atrás</button>
+        <button id="onb-btn-next" onclick="onbNext()">Siguiente →</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /app -->
+
+<script>
+// ── CONFIG ──────────────────────────────────────────────────────────────────
+const DATA_BASE_URL = 'https://releos.github.io/sombras/';
+
+const RP=Math.PI/180;
+const rd=a=>a*RP, dg=a=>a/RP;
+const CENTER=[40.4168,-3.7038];
+const MAX_SHADOW_LENGTH=300, TILE_DEG=0.004;
+const SHADOW_MIN_ZOOM=16.0;
+const LOD_ZOOM=SHADOW_MIN_ZOOM; // edificios y sombras aparecen al mismo zoom
+const SHADOW_MAX_ZOOM=19.5;
+const IS_MOBILE=navigator.maxTouchPoints>0||/Android|iPhone/i.test(navigator.userAgent);
+const DPR=Math.min(devicePixelRatio||1,IS_MOBILE?1.5:2);
+const THROTTLE=16; // 60fps cap canvas desktop
+
+const MAP_STYLES={
+  dark:'https://basemaps.cartocdn.com/gl/dark-matter-gl-style/style.json',
+  light:'https://tiles.openfreemap.org/styles/liberty'
+};
+
+// ── ÚLTIMA POSICIÓN ──────────────────────────────────────────────────────────
+const POS_KEY='smLastPos';
+function saveLastPos(){
+  if(!map)return;
+  try{localStorage.setItem(POS_KEY,JSON.stringify({lat:MAP_LAT,lon:MAP_LON,zoom:map.getZoom()}));}catch{}
+}
+function loadLastPos(){
+  try{
+    const d=JSON.parse(localStorage.getItem(POS_KEY)||'null');
+    if(d&&typeof d.lat==='number'&&typeof d.lon==='number'){return d;}
+  }catch{}
+  return null;
+}
+
+// ── UTILIDADES DE FECHA LOCAL ───────────────────────────────────────────────
+function getLocalIsoDate(d){
+  const y=d.getFullYear();
+  const m=String(d.getMonth()+1).padStart(2,'0');
+  const day=String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+}
+
+// ── STATE ───────────────────────────────────────────────────────────────────
+let MAP_LAT=CENTER[0], MAP_LON=CENTER[1];
+let curDate=new Date(), curMins=720, mode='2d';
+let theme=localStorage.getItem('smtheme')||'dark';
+let map, mapReady=false, popup=null;
+const tileCache=new Map(), tileStatus=new Map();
+let visibleGroups=[];
+let shadowDirty=true, renderPending=false, lastRender=0;
+let wLoaded=false, hCloud=[], hCode=[], hPrec=[], hUV=[], hTemp=[], wDates=[], dData={};
+let fetchTmr=null, geoShadowTimer=null;
+let shadowGLLayer=null; // custom WebGL layer para sombras 3D desktop
+
+const shCanvas=document.getElementById('shcanvas');
+const shCtx=shCanvas.getContext('2d',{alpha:true,desynchronized:true});
+const offCanvas=document.createElement('canvas');
+const offCtx=offCanvas.getContext('2d',{alpha:true});
+
+function resizeCanvas(){
+  const r=document.getElementById('mapwrap').getBoundingClientRect();
+  const w=Math.round(r.width*DPR), h=Math.round(r.height*DPR);
+  shCanvas.width=w; shCanvas.height=h;
+  shCanvas.style.width=r.width+'px'; shCanvas.style.height=r.height+'px';
+  offCanvas.width=w; offCanvas.height=h;
+  shadowDirty=true;
+}
+window.addEventListener('resize',()=>{resizeCanvas();scheduleRender();});
+
+// ── RENDER ──────────────────────────────────────────────────────────────────
+function scheduleRender(){
+  if(renderPending)return;
+  renderPending=true;
+  requestAnimationFrame(doRender);
+}
+function doRender(){
+  renderPending=false;
+  const now=performance.now();
+  if(!shadowDirty&&now-lastRender<THROTTLE)return;
+  lastRender=now; shadowDirty=false;
+  renderCanvas();
+}
+
+function renderCanvas(){
+  const W=shCanvas.width, H=shCanvas.height;
+  shCtx.clearRect(0,0,W,H);
+  offCtx.clearRect(0,0,W,H);
+  // Canvas solo se usa en desktop 2D — el resto va por capas GeoJSON de MapLibre
+  if(!mapReady || IS_MOBILE || mode!=='2d') return;
+
+  const zoom=map.getZoom();
+  if(zoom<SHADOW_MIN_ZOOM||zoom>SHADOW_MAX_ZOOM) return;
+  if(!visibleGroups.length) return;
+
+  const p=sunPos(curMins,MAP_LAT,MAP_LON);
+  const isDay=p.el>0.5;
+  const shadowsVisible=isDay && zoom<=SHADOW_MAX_ZOOM;
+  const cloud=getCurCloud();
+  const shOpacity=cloud!==null?Math.max(0.06,0.52*(1-cloud/100*0.80)):0.52;
+
+  const cosLat=Math.cos(rd(MAP_LAT));
+  const mPDLat=111000, mPDLon=111000*cosLat;
+  const lenPerM=shadowsVisible?Math.min(MAX_SHADOW_LENGTH,1/Math.tan(rd(Math.max(p.el,0.5)))):0;
+  const uLat=shadowsVisible?-Math.cos(rd(p.az))*lenPerM/mPDLat:0;
+  const uLon=shadowsVisible?-Math.sin(rd(p.az))*lenPerM/mPDLon:0;
+
+  const isDark=theme==='dark';
+  let shCount=0, footCount=0;
+  const b=map.getBounds();
+  const vW=b.getWest(), vE=b.getEast(), vS=b.getSouth(), vN=b.getNorth();
+  const margin=MAX_SHADOW_LENGTH/111000;
+  const clipW=vW-margin, clipE=vE+margin, clipS=vS-margin, clipN=vN+margin;
+  const strokeW=Math.max(0.5,Math.min(1.8,(zoom-13)*0.35))*DPR;
+  const footFill=isDark?'rgba(232,125,13,0.06)':'rgba(232,125,13,0.05)';
+  const footStroke=isDark?'rgba(232,125,13,0.70)':'rgba(180,90,0,0.70)';
+  const shadowFlat='rgba(80,130,255,1)';
+
+  // Sombras: un solo path compuesto → un fill → blit
+  if(shadowsVisible){
+    offCtx.beginPath();
+    for(const g of visibleGroups){
+      for(const poly of (g.polys||[])){
+        const ring=poly.ring;if(!ring||ring.length<2)continue;
+        const[lon0,lat0]=ring[0];
+        if(lon0<clipW||lon0>clipE||lat0<clipS||lat0>clipN)continue;
+        const h=poly.h, dLat=uLat*h, dLon=uLon*h;
+        const pts=[];
+        for(const[lon,lat]of ring){
+          const a=map.project([lon,lat]);pts.push([a.x*DPR,a.y*DPR]);
+          const bpt=map.project([lon+dLon,lat+dLat]);pts.push([bpt.x*DPR,bpt.y*DPR]);
+        }
+        if(pts.length<3)continue;
+        const sh=convexHull(pts);if(sh.length<3)continue;
+        offCtx.moveTo(sh[0][0],sh[0][1]);
+        for(let i=1;i<sh.length;i++)offCtx.lineTo(sh[i][0],sh[i][1]);
+        offCtx.closePath();shCount++;
+      }
+    }
+    offCtx.fillStyle=shadowFlat;offCtx.fill();
+    shCtx.globalAlpha=shOpacity;shCtx.drawImage(offCanvas,0,0);shCtx.globalAlpha=1;
+  }
+
+  // Huellas: un solo path compuesto
+  shCtx.fillStyle=footFill;shCtx.strokeStyle=footStroke;shCtx.lineWidth=strokeW;
+  shCtx.beginPath();
+  for(const g of visibleGroups){
+    for(const poly of (g.polys||[])){
+      const ring=poly.ring;if(!ring||ring.length<2)continue;
+      const[lon0,lat0]=ring[0];
+      if(lon0<vW||lon0>vE||lat0<vS||lat0>vN)continue;
+      const p0=map.project([ring[0][0],ring[0][1]]);
+      shCtx.moveTo(p0.x*DPR,p0.y*DPR);
+      for(let i=1;i<ring.length;i++){const pi=map.project([ring[i][0],ring[i][1]]);shCtx.lineTo(pi.x*DPR,pi.y*DPR);}
+      shCtx.closePath();footCount++;
+    }
+  }
+  shCtx.fill();shCtx.stroke();
+  const l10=isDay?Math.round(Math.min(MAX_SHADOW_LENGTH,10/Math.tan(rd(Math.max(p.el,0.5))))):0;
+  const eff=cloud!==null?Math.round((1-cloud/100)*100):100;
+  document.getElementById('statusbar').textContent=
+    !isDay?`${footCount} polígonos · noche`
+    :`${shCount} sombras · ${footCount} polígonos · elev. ${p.el.toFixed(1)}° · az. ${Math.round(p.az)}° · ~${l10}m/10m · sol ${eff}%`;
+}
+
+// ── GEO SHADOW UPDATE (3D + mobile) ─────────────────────────────────────────
+// MapLibre renderiza las capas GeoJSON en coordenadas geográficas — solo hay que
+// llamar setData cuando cambian las FORMAS (sol o edificios), nunca en cada pan/zoom.
+function scheduleGeoUpdate(immediate=false){
+  clearTimeout(geoShadowTimer);
+  if(immediate){updateGeoShadows();return;}
+  geoShadowTimer=setTimeout(updateGeoShadows,80);
+}
+
+function updateGeoShadows(){
+  if(!mapReady)return;
+  const zoom=map.getZoom();
+  if(zoom<SHADOW_MIN_ZOOM||zoom>SHADOW_MAX_ZOOM||!visibleGroups.length){
+    clearGeoLayers();return;
+  }
+  const p=sunPos(curMins,MAP_LAT,MAP_LON);
+  const isDay=p.el>0.5;
+  const cloud=getCurCloud();
+  const shOpacity=cloud!==null?Math.max(0.06,0.52*(1-cloud/100*0.80)):0.52;
+
+  const cosLat=Math.cos(rd(MAP_LAT));
+  const mPDLat=111000, mPDLon=111000*cosLat;
+  const lenPerM=isDay?Math.min(MAX_SHADOW_LENGTH,1/Math.tan(rd(Math.max(p.el,0.5)))):0;
+  const uLat=isDay?-Math.cos(rd(p.az))*lenPerM/mPDLat:0;
+  const uLon=isDay?-Math.sin(rd(p.az))*lenPerM/mPDLon:0;
+
+  const isDark=theme==='dark';
+
+  // GL layer para sombras: modo 3D siempre + móvil en 2D (opacidad uniforme, sin acumulación)
+  const useGL=shadowGLLayer&&(mode==='3d'||IS_MOBILE);
+  if(useGL){
+    const rings=[];
+    if(isDay){
+      const metersPerTile=40075016/Math.pow(2,zoom);
+      const radiusDeg=metersPerTile*2.0/111000;
+      const cosL=Math.cos(rd(MAP_LAT));
+      const pad=MAX_SHADOW_LENGTH/111000;
+      const clipW=MAP_LON-radiusDeg/cosL-pad, clipE=MAP_LON+radiusDeg/cosL+pad;
+      const clipS=MAP_LAT-radiusDeg-pad,      clipN=MAP_LAT+radiusDeg+pad;
+      for(const g of visibleGroups){
+        for(const poly of (g.polys||[])){
+          const ring=poly.ring;if(!ring||ring.length<2)continue;
+          const[lon0,lat0]=ring[0];
+          if(lon0<clipW||lon0>clipE||lat0<clipS||lat0>clipN)continue;
+          const h=poly.h,dLat=uLat*h,dLon=uLon*h;
+          const pts=[];
+          for(const[lon,lat]of ring){pts.push([lon,lat]);pts.push([lon+dLon,lat+dLat]);}
+          if(pts.length<3)continue;
+          const sh=convexHull(pts);if(sh.length<3)continue;
+          rings.push(sh);
+        }
+      }
+    }
+    shadowGLLayer.setData(rings,shOpacity,isDark);
+    map.triggerRepaint();
+    // En 3D no hay huellas; en 2D móvil sí → continuar para actualizar footprints GeoJSON
+    if(mode==='3d')return;
+  }
+
+  // Huellas (móvil 2D) y sombras GeoJSON (desktop 2D — aquí no se llega desde desktop)
+  const shadowFeats=[], footFeats=[];
+  for(const g of visibleGroups){
+    for(const poly of (g.polys||[])){
+      const ring=poly.ring;if(!ring||ring.length<2)continue;
+      footFeats.push({type:'Feature',geometry:{type:'Polygon',coordinates:[ring]},properties:{th:isDark?'dark':'light'}});
+      if(isDay&&!useGL){
+        const h=poly.h,dLat=uLat*h,dLon=uLon*h;
+        const pts=[];
+        for(const[lon,lat]of ring){pts.push([lon,lat]);pts.push([lon+dLon,lat+dLat]);}
+        if(pts.length<3)continue;
+        const sh=convexHull(pts);if(sh.length<3)continue;
+        shadowFeats.push({type:'Feature',geometry:{type:'Polygon',coordinates:[[...sh,sh[0]]]},properties:{}});
+      }
+    }
+  }
+  if(!useGL){
+    try{
+      const shColor=isDark?'rgba(80,130,255,1)':'rgba(20,50,160,1)';
+      map.getSource('madrid-shadows').setData({type:'FeatureCollection',features:shadowFeats});
+      map.setPaintProperty('bld-shadows','fill-color',shColor);
+      map.setPaintProperty('bld-shadows','fill-opacity',shOpacity);
+    }catch(e){}
+  }
+  if(IS_MOBILE&&mode==='2d'){
+    try{map.getSource('madrid-footprints').setData({type:'FeatureCollection',features:footFeats});}catch(e){}
+  }else{
+    try{map.getSource('madrid-footprints').setData({type:'FeatureCollection',features:[]});}catch(e){}
+  }
+}
+
+// ── CONVEX HULL ─────────────────────────────────────────────────────────────
+function cross(O,A,B){return(A[0]-O[0])*(B[1]-O[1])-(A[1]-O[1])*(B[0]-O[0]);}
+function convexHull(pts){
+  if(pts.length<3)return pts;
+  const p=pts.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+  const lo=[],hi=[];
+  for(const pt of p){while(lo.length>=2&&cross(lo[lo.length-2],lo[lo.length-1],pt)<=0)lo.pop();lo.push(pt);}
+  for(let i=p.length-1;i>=0;i--){while(hi.length>=2&&cross(hi[hi.length-2],hi[hi.length-1],p[i])<=0)hi.pop();hi.push(p[i]);}
+  lo.pop();hi.pop();return[...lo,...hi];
+}
+
+// ── SHADOW GL LAYER (desktop 3D) ─────────────────────────────────────────────
+// Técnica: stencil buffer de 2 pasos
+//   Paso 1 → geometría de sombras → stencil (bit 7), sin escritura de color
+//   Paso 2 → quad pantalla completa → pinta solo donde stencil=1, y lo borra
+// Resultado: cada pixel se pinta exactamente una vez → opacidad completamente uniforme.
+// No usa FBO ni texturas extra. No acumula aunque 100 polígonos se solapen.
+class ShadowGLLayer{
+  constructor(){this.id='shadow-gl';this.type='custom';this.renderingMode='2d';this._rings=[];this._opacity=0.52;this._isDark=true;this._dirty=false;this._vBuf=null;this._vCount=0;}
+  setData(rings,opacity,isDark){
+    // Solo marcar dirty si algo cambió realmente
+    const changed=opacity!==this._opacity||isDark!==this._isDark||rings!==this._rings;
+    this._rings=rings;this._opacity=opacity;this._isDark=isDark;
+    if(changed)this._dirty=true;
+  }
+  clear(){this._rings=[];this._dirty=true;}
+  onAdd(map,gl){
+    this._map=map;
+    const sh=(t,s)=>{const x=gl.createShader(t);gl.shaderSource(x,s);gl.compileShader(x);return x;};
+    const pr=(vs,fs)=>{const p=gl.createProgram();gl.attachShader(p,sh(gl.VERTEX_SHADER,vs));gl.attachShader(p,sh(gl.FRAGMENT_SHADER,fs));gl.linkProgram(p);return p;};
+    // pA: solo escribe geometría en stencil (sin salida de color)
+    this._pA=pr('attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}',
+                'void main(){}');
+    // pB: quad con color uniforme de sombra
+    this._pB=pr('attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}',
+                'precision mediump float;uniform vec4 col;void main(){gl_FragColor=col;}');
+    this._locA=gl.getAttribLocation(this._pA,'p');
+    this._locB=gl.getAttribLocation(this._pB,'p');
+    this._locCol=gl.getUniformLocation(this._pB,'col');
+    this._bufA=gl.createBuffer();
+    this._bufQ=gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER,this._bufQ);
+    gl.bufferData(gl.ARRAY_BUFFER,new Float32Array([-1,-1,1,-1,1,1,-1,-1,1,1,-1,1]),gl.STATIC_DRAW);
+  }
+  render(gl){
+    if(!this._rings.length)return;
+    const m=this._map;
+    const cW=gl.canvas.clientWidth||gl.canvas.width/devicePixelRatio;
+    const cH=gl.canvas.clientHeight||gl.canvas.height/devicePixelRatio;
+
+    // Recalcular vértices solo si los datos cambiaron O si la cámara se movió
+    // (la proyección NDC depende de la vista, así que siempre hay que recalcular en move)
+    // El flag _dirty también se activa desde setData → solo omitimos el bufferData costoso
+    // cuando el array de vértices ya está en GPU y la cámara no se movió.
+    const cameraKey=`${cW}x${cH}x${m.getBearing().toFixed(2)}x${m.getPitch().toFixed(2)}x${m.getZoom().toFixed(3)}x${m.getCenter().lng.toFixed(5)}x${m.getCenter().lat.toFixed(5)}`;
+    const needsUpload=this._dirty||cameraKey!==this._lastCameraKey;
+    let v=this._cachedV;
+    if(needsUpload){
+      v=[];
+      for(const ring of this._rings){
+        if(ring.length<3)continue;
+        const pts=ring.map(([lon,lat])=>{const px=m.project([lon,lat]);return[(px.x/cW)*2-1,1-(px.y/cH)*2];});
+        if(pts.some(([x,y])=>Math.abs(x)>4||Math.abs(y)>4))continue;
+        for(let i=1;i<pts.length-1;i++)v.push(...pts[0],...pts[i],...pts[i+1]);
+      }
+      if(v.length){
+        gl.bindBuffer(gl.ARRAY_BUFFER,this._bufA);
+        gl.bufferData(gl.ARRAY_BUFFER,new Float32Array(v),gl.DYNAMIC_DRAW);
+      }
+      this._cachedV=v;
+      this._lastCameraKey=cameraKey;
+      this._dirty=false;
+    }
+    if(!v||!v.length)return;
+
+    // ── Guardar estado GL ────────────────────────────────────────────────────
+    const SMASK=0x80; // bit 7 — MapLibre usa bits 0-6 para tile clipping
+    const wasBlend=gl.isEnabled(gl.BLEND);
+    const wasDepth=gl.isEnabled(gl.DEPTH_TEST);
+    const wasStencil=gl.isEnabled(gl.STENCIL_TEST);
+    const prevCM=gl.getParameter(gl.COLOR_WRITEMASK);
+    const prevSWM=gl.getParameter(gl.STENCIL_WRITEMASK);
+    const prevSF=gl.getParameter(gl.STENCIL_FUNC);
+    const prevSR=gl.getParameter(gl.STENCIL_REF);
+    const prevSM=gl.getParameter(gl.STENCIL_VALUE_MASK);
+    const prevSOF=gl.getParameter(gl.STENCIL_FAIL);
+    const prevSODF=gl.getParameter(gl.STENCIL_PASS_DEPTH_FAIL);
+    const prevSODP=gl.getParameter(gl.STENCIL_PASS_DEPTH_PASS);
+    const prevBEq=gl.getParameter(gl.BLEND_EQUATION);
+    const prevBSrc=gl.getParameter(gl.BLEND_SRC_RGB);
+    const prevBDst=gl.getParameter(gl.BLEND_DST_RGB);
+
+    // ── PASO 1: geometría → stencil (sin color) ──────────────────────────────
+    gl.enable(gl.STENCIL_TEST);
+    gl.stencilMask(SMASK);
+    gl.stencilFunc(gl.ALWAYS,SMASK,SMASK);
+    gl.stencilOp(gl.KEEP,gl.KEEP,gl.REPLACE);
+    gl.colorMask(false,false,false,false);
+    gl.disable(gl.BLEND);
+    gl.disable(gl.DEPTH_TEST);
+    gl.useProgram(this._pA);
+    gl.bindBuffer(gl.ARRAY_BUFFER,this._bufA);
+    gl.enableVertexAttribArray(this._locA);
+    gl.vertexAttribPointer(this._locA,2,gl.FLOAT,false,0,0);
+    gl.drawArrays(gl.TRIANGLES,0,v.length/2);
+    gl.stencilFunc(gl.EQUAL,SMASK,SMASK);
+    gl.stencilOp(gl.KEEP,gl.KEEP,gl.ZERO); // ZERO autolimpia el bit tras pintar
+    gl.colorMask(true,true,true,true);
+    gl.enable(gl.BLEND);
+    gl.blendEquation(gl.FUNC_ADD);
+    gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+    gl.useProgram(this._pB);
+    gl.bindBuffer(gl.ARRAY_BUFFER,this._bufQ);
+    gl.enableVertexAttribArray(this._locB);
+    gl.vertexAttribPointer(this._locB,2,gl.FLOAT,false,0,0);
+    const[r,g,b]=this._isDark?[0.31,0.51,1.0]:[0.08,0.20,0.63];
+    gl.uniform4f(this._locCol,r,g,b,this._opacity);
+    gl.drawArrays(gl.TRIANGLES,0,6);
+
+    // ── Restaurar estado GL ──────────────────────────────────────────────────
+    gl.stencilMask(prevSWM);
+    gl.stencilFunc(prevSF,prevSR,prevSM);
+    gl.stencilOp(prevSOF,prevSODF,prevSODP);
+    gl.colorMask(prevCM[0],prevCM[1],prevCM[2],prevCM[3]);
+    if(!wasBlend)gl.disable(gl.BLEND);
+    if(wasDepth)gl.enable(gl.DEPTH_TEST);
+    if(!wasStencil)gl.disable(gl.STENCIL_TEST);
+    gl.blendEquation(prevBEq);
+    gl.blendFuncSeparate(prevBSrc,prevBDst,prevBSrc,prevBDst);
+    gl.disableVertexAttribArray(this._locA);
+    gl.disableVertexAttribArray(this._locB);
+  }
+  onRemove(map,gl){
+    gl.deleteProgram(this._pA);gl.deleteProgram(this._pB);
+    gl.deleteBuffer(this._bufA);gl.deleteBuffer(this._bufQ);
+  }
+}
+
+// ── THEME ───────────────────────────────────────────────────────────────────
+function toggleTheme(){
+  theme=theme==='dark'?'light':'dark';
+  localStorage.setItem('smtheme',theme);
+  document.documentElement.setAttribute('data-theme',theme);
+  document.getElementById('theme-btn').textContent=theme==='dark'?'☀️':'🌙';
+  if(mapReady){
+    map.setStyle(MAP_STYLES[theme]);
+    map.once('idle',()=>{
+      setupMapLayers();
+      if(mode==='3d'){
+        try{map.setLayoutProperty('bld-3d','visibility','visible');}catch(e){}
+        // GL layer maneja sombras en 3D (desktop y móvil)
+        try{map.setLayoutProperty('bld-shadows','visibility','none');}catch(e){}
+        push3DBuildings();
+      } else if(IS_MOBILE){
+        // GL layer maneja sombras; solo mostrar huellas
+        try{map.setLayoutProperty('bld-foot-fill','visibility','visible');}catch(e){}
+        try{map.setLayoutProperty('bld-foot-line','visibility','visible');}catch(e){}
+      }
+      applyLight();
+      shadowDirty=true;scheduleRender();
+      scheduleGeoUpdate(true);
+    });
+  }
+}
+
+// ── MAP INIT ─────────────────────────────────────────────────────────────────
+function initMap(){
+  const savedPos=loadLastPos();
+  // Los parámetros de URL tienen prioridad sobre la posición guardada
+  const urlPos=(()=>{try{const p=new URLSearchParams(location.search);if(p.has('lat')&&p.has('lon'))return{lat:parseFloat(p.get('lat')),lon:parseFloat(p.get('lon')),zoom:p.has('z')?parseFloat(p.get('z')):17.5};}catch{}return null;})();
+  const startPos=urlPos||savedPos;
+  if(startPos){MAP_LAT=startPos.lat;MAP_LON=startPos.lon;}
+  map=new maplibregl.Map({
+    container:'map',
+    style:MAP_STYLES[theme],
+    center:[startPos?startPos.lon:CENTER[1],startPos?startPos.lat:CENTER[0]],
+    zoom:startPos?Math.max(startPos.zoom,5):17.5,pitch:0,bearing:0,
+    antialias:!IS_MOBILE,maxPitch:75,
+    preserveDrawingBuffer:true,
+    maxZoom:19.5, minZoom:5.0,
+    maxBounds:[[-19.0,27.0],[5.0,44.0]],
+    dragRotate:true,touchZoomRotate:true
+  });
+  map.addControl(new maplibregl.NavigationControl({showCompass:true,visualizePitch:true}),'bottom-right');
+  map.on('rotate',updateBearing);
+  // move → solo repinta canvas desktop 2D (MapLibre re-renderiza GeoJSON solo)
+  map.on('move',()=>{shadowDirty=true;scheduleRender();});
+  // zoom → repinta canvas + verifica LOD + puede cambiar qué edificios se muestran
+  map.on('zoom',()=>{checkLOD();shadowDirty=true;scheduleRender();});
+  map.on('load',()=>{
+    setupMapLayers();
+    mapReady=true;
+    resizeCanvas();applyLight();checkLOD();
+    document.getElementById('statusbar').textContent='Cargando tiles…';
+    scheduleViewportFetch();
+    shadowDirty=true;scheduleRender();
+    setupPinDrop();
+    setupSunHoursClick();
+    updateBearing(); // aplicar rotación inicial de la brújula
+  });
+  let _savePosTmr=null;
+  map.on('moveend',()=>{
+    const c=map.getCenter();
+    const dlat=Math.abs(c.lat-MAP_LAT), dlon=Math.abs(c.lng-MAP_LON);
+    MAP_LAT=c.lat; MAP_LON=c.lng;
+    if(dlat>0.005||dlon>0.005) fetchWeather(MAP_LAT,MAP_LON);
+    scheduleViewportFetch(); // → updateVisible → scheduleGeoUpdate
+    shadowDirty=true;scheduleRender();
+    // Guardar posición con throttle (máx 1 escritura cada 3 s)
+    clearTimeout(_savePosTmr);
+    _savePosTmr=setTimeout(saveLastPos,3000);
+  });
+}
+
+function setupMapLayers(){
+  for(const l of map.getStyle().layers){
+    if(l.type==='symbol'&&l.layout&&l.layout['text-field']){
+      try{map.setLayoutProperty(l.id,'text-field',['coalesce',['get','name:es'],['get','name_es'],['get','name'],['get','name:en']]);}catch(e){}
+    }
+    if((l.id||'').toLowerCase().includes('build')||(l['source-layer']||'').toLowerCase().includes('build')){
+      try{map.setLayoutProperty(l.id,'visibility','none');}catch(e){}
+    }
+  }
+  let beforeId;
+  for(const l of map.getStyle().layers){if(l.type==='symbol'){beforeId=l.id;break;}}
+
+  if(!map.getSource('madrid-3d')){
+    map.addSource('madrid-3d',{type:'geojson',data:{type:'FeatureCollection',features:[]},buffer:0,tolerance:0.3});
+  }
+  if(!map.getSource('madrid-shadows')){
+    map.addSource('madrid-shadows',{type:'geojson',data:{type:'FeatureCollection',features:[]},buffer:0,tolerance:0.5});
+  }
+  // Custom GL layer para sombras en modo 3D (stencil → opacidad uniforme, desktop y móvil)
+  if(!map.getLayer('shadow-gl')){
+    shadowGLLayer=new ShadowGLLayer();
+    map.addLayer(shadowGLLayer,beforeId);
+  }
+  if(!map.getLayer('bld-3d')){
+    map.addLayer({
+      id:'bld-3d',type:'fill-extrusion',source:'madrid-3d',minzoom:LOD_ZOOM,
+      layout:{visibility:'none'},
+      paint:{
+        'fill-extrusion-color':['interpolate',['linear'],['get','h'],0,'#1e4030',6,'#245038',14,'#2d6a42',28,'#3a8a55',50,'#45a060'],
+        'fill-extrusion-height':['get','h'],
+        'fill-extrusion-base':0,'fill-extrusion-opacity':0.88
+      }
+    },beforeId);
+    map.on('click','bld-3d',e=>{
+      const f=e.features[0];if(!f)return;
+      const h=parseFloat(f.properties.h||0);
+      const p=sunPos(curMins,MAP_LAT,MAP_LON);
+      const sh=p.el>0?Math.round(Math.min(MAX_SHADOW_LENGTH,h/Math.tan(rd(Math.max(p.el,0.5))))):null;
+      const html=`<div class="h-popup"><strong>🏛 ${h.toFixed(1)} m</strong>
+        <div class="hp-row"><span>Sombra ahora</span><span>${sh!=null?sh+'m':'noche'}</span></div>
+        <div class="hp-src">✓ Ayto. Madrid · dic. 2025</div></div>`;
+      if(popup)popup.remove();
+      popup=new maplibregl.Popup({closeButton:true,maxWidth:'180px'}).setLngLat(e.lngLat).setHTML(html).addTo(map);
+    });
+    map.on('mouseenter','bld-3d',()=>map.getCanvas().style.cursor='pointer');
+    map.on('mouseleave','bld-3d',()=>map.getCanvas().style.cursor='');
+  }
+  if(!map.getLayer('bld-shadows')){
+    map.addLayer({
+      id:'bld-shadows',type:'fill',source:'madrid-shadows',
+      minzoom:SHADOW_MIN_ZOOM,
+      layout:{visibility:'none'},
+      paint:{
+        'fill-color':'rgba(80,130,255,1)',
+        'fill-opacity':0.52,
+        'fill-antialias':false  // sin antialiasing entre polígonos contiguos
+      }
+    },'bld-3d');
+  }
+  // Fuente y capas de huellas para modo 2D en móvil (también útil en desktop como alternativa)
+  if(!map.getSource('madrid-footprints')){
+    map.addSource('madrid-footprints',{type:'geojson',data:{type:'FeatureCollection',features:[]},buffer:0,tolerance:0.3});
+  }
+  if(!map.getLayer('bld-foot-fill')){
+    map.addLayer({
+      id:'bld-foot-fill',type:'fill',source:'madrid-footprints',
+      minzoom:SHADOW_MIN_ZOOM,
+      layout:{visibility:'none'},
+      paint:{'fill-color':['case',['==',['get','th'],'dark'],'rgba(232,125,13,0.06)','rgba(232,125,13,0.05)'],'fill-opacity':1}
+    },'bld-3d');
+  }
+  if(!map.getLayer('bld-foot-line')){
+    map.addLayer({
+      id:'bld-foot-line',type:'line',source:'madrid-footprints',
+      minzoom:SHADOW_MIN_ZOOM,
+      layout:{visibility:'none'},
+      paint:{'line-color':['case',['==',['get','th'],'dark'],'rgba(232,125,13,0.70)','rgba(180,90,0,0.70)'],'line-width':1}
+    },'bld-3d');
+  }
+  // Inicialización de visibilidad en móvil: el GL layer maneja sombras (no bld-shadows),
+  // y las huellas deben mostrarse desde el primer load en modo 2D.
+  if(IS_MOBILE&&mode!=='3d'){
+    try{map.setLayoutProperty('bld-foot-fill','visibility','visible');}catch(e){}
+    try{map.setLayoutProperty('bld-foot-line','visibility','visible');}catch(e){}
+  }
+}
+
+// ── TILES ────────────────────────────────────────────────────────────────────
+function snapTile(v){return Math.floor(v/TILE_DEG)*TILE_DEG;}
+function tileKey(tx,ty){return`${tx.toFixed(4)}_${ty.toFixed(4)}`;}
+function tilesForBBox(w,s,e,n){
+  const t=[];
+  for(let tx=snapTile(w);tx<e+TILE_DEG;tx=+(tx+TILE_DEG).toFixed(6))
+    for(let ty=snapTile(s);ty<n+TILE_DEG;ty=+(ty+TILE_DEG).toFixed(6))
+      t.push({tx,ty,key:tileKey(tx,ty)});
+  return t;
+}
+function scheduleViewportFetch(){clearTimeout(fetchTmr);fetchTmr=setTimeout(fetchViewport,200);}
+
+function clearGeoLayers(){
+  const empty={type:'FeatureCollection',features:[]};
+  try{map.getSource('madrid-shadows').setData(empty);}catch(e){}
+  try{map.getSource('madrid-footprints').setData(empty);}catch(e){}
+  if(shadowGLLayer){shadowGLLayer.clear();map.triggerRepaint();}
+}
+
+async function fetchViewport(){
+  if(!mapReady)return;
+  const zoom=map.getZoom();
+  if(zoom<SHADOW_MIN_ZOOM-0.5){
+    updateBadge('ok','Aleja el mapa para ver España — Acerca para ver edificios','');
+    visibleGroups=[];
+    try{map.getSource('madrid-3d').setData({type:'FeatureCollection',features:[]});}catch(e){}
+    clearGeoLayers();
+    shadowDirty=true;scheduleRender();return;
+  }
+  // Calcular bbox a partir del centro + radio basado en zoom, ignorando el pitch.
+  // getBounds() con pitch alto incluye el horizonte virtual y puede traer 10x más tiles.
+  // Radio en grados: a zoom 15 ≈ 1.2 km/tile → radio ~2 km + 20% margen = ~0.022°
+  const metersPerTileAtZoom = 40075016 / Math.pow(2, zoom); // perímetro / 2^z
+  const radiusM = metersPerTileAtZoom * 1.4; // ~1.4 tiles de radio en la pantalla real
+  const radiusDeg = radiusM / 111000;
+  const cLat=MAP_LAT, cLon=MAP_LON;
+  const cosL=Math.cos(rd(cLat));
+  const fetchW=cLon-radiusDeg/cosL, fetchE=cLon+radiusDeg/cosL;
+  const fetchS=cLat-radiusDeg,     fetchN=cLat+radiusDeg;
+  const pad=MAX_SHADOW_LENGTH/111000;
+  const tiles=tilesForBBox(fetchW-pad,fetchS-pad,fetchE+pad,fetchN+pad)
+    .filter(t=>!tileStatus.has(t.key));
+  if(!tiles.length){updateVisible();if(mode==='3d')push3DBuildings();shadowDirty=true;scheduleRender();scheduleGeoUpdate();return;}
+  tiles.forEach(t=>tileStatus.set(t.key,'loading'));
+  updateBadge('loading','Cargando datos…','');
+  const bs=IS_MOBILE?4:tiles.length; // desktop: todos en paralelo
+  for(let i=0;i<tiles.length;i+=bs){
+    const batch=tiles.slice(i,i+bs);
+    let anyNew=false;
+    await Promise.allSettled(batch.map(async t=>{
+      try{
+        const r=await fetch(`${DATA_BASE_URL}data/tiles/${t.key}.json`);
+        if(r.status===404){tileStatus.set(t.key,'empty');return;}
+        if(!r.ok)throw new Error(r.status);
+        tileCache.set(t.key,await r.json());
+        tileStatus.set(t.key,'done');anyNew=true;
+      }catch{tileStatus.set(t.key,'error');}
+    }));
+    if(anyNew){
+      updateVisible();
+      if(mode==='3d'&&mapReady){
+        try{map.setLayoutProperty('bld-3d','visibility','visible');}catch(e){}
+        push3DBuildings();
+      }
+      shadowDirty=true;scheduleRender();
+    }
+  }
+  const errs=[...tileStatus.values()].filter(v=>v==='error').length;
+  const total=[...tileCache.values()].reduce((s,d)=>s+d.length,0);
+  if(errs>0)updateBadge('err','Error al cargar datos de edificios','');
+  else if(total>0)updateBadge('ok','Ayto. Madrid — oficial dic. 2025',`${total} edificios`);
+}
+
+function updateVisible(){
+  if(!mapReady)return;
+  // Usamos el mismo radio acotado que fetchViewport para no acumular
+  // demasiados grupos cuando el mapa está muy inclinado.
+  const zoom=map.getZoom();
+  const metersPerTile=40075016/Math.pow(2,zoom);
+  const radiusDeg=metersPerTile*1.4/111000;
+  const cosL=Math.cos(rd(MAP_LAT));
+  const pad=MAX_SHADOW_LENGTH/111000;
+  const vW=MAP_LON-radiusDeg/cosL-pad, vE=MAP_LON+radiusDeg/cosL+pad;
+  const vS=MAP_LAT-radiusDeg-pad,      vN=MAP_LAT+radiusDeg+pad;
+  const groups=[];
+  for(const data of tileCache.values()){
+    for(const g of data){
+      const[fx,fy]=g.hull[0];
+      if(fx>=vW&&fx<=vE&&fy>=vS&&fy<=vN){groups.push(g);continue;}
+      for(const[x,y]of g.hull){if(x>=vW&&x<=vE&&y>=vS&&y<=vN){groups.push(g);break;}}
+    }
+  }
+  visibleGroups=groups;shadowDirty=true;
+  if(mode==='3d'&&mapReady)push3DBuildings();
+  if(IS_MOBILE||mode==='3d')scheduleGeoUpdate();
+}
+
+function push3DBuildings(){
+  if(!mapReady||!map.getSource('madrid-3d'))return;
+  const feats=[];
+  for(const g of visibleGroups){
+    for(const poly of (g.polys||[])){
+      if(!poly.ring||poly.ring.length<3)continue;
+      feats.push({type:'Feature',geometry:{type:'Polygon',coordinates:[poly.ring]},properties:{h:poly.h}});
+    }
+  }
+  try{map.getSource('madrid-3d').setData({type:'FeatureCollection',features:feats});}catch(e){}
+}
+
+function updateBadge(state,text,n){
+  document.getElementById('src-badge').className=state==='ok'?'ok':state==='err'?'err':'';
+  document.getElementById('sb-text').textContent=text;
+  document.getElementById('sb-n').textContent=n||'';
+}
+
+// ── MODE / CAMERA ────────────────────────────────────────────────────────────
+function setMode(m){
+  mode=m;
+  document.getElementById('btn2d').className='tb'+(m==='2d'?' on2d':'');
+  document.getElementById('btn3d').className='tb'+(m==='3d'?' on3d':'');
+  document.getElementById('compass').style.display='block';
+  if(m==='3d'){
+    showNotif('','🖱 Ctrl+arrastrar: rotar/inclinar',4000);
+  }
+  const canvas=document.getElementById('shcanvas');
+  if(m==='3d'){
+    canvas.style.display='none';
+    map.easeTo({pitch:52,bearing:-18,zoom:Math.max(map.getZoom(),LOD_ZOOM),duration:600});
+    try{map.setLayoutProperty('bld-3d','visibility','visible');}catch(e){}
+    // GL layer maneja sombras en 3D (desktop y móvil) — bld-shadows solo activo en 2D móvil
+    try{map.setLayoutProperty('bld-shadows','visibility','none');}catch(e){}
+    try{map.setLayoutProperty('bld-foot-fill','visibility','none');}catch(e){}
+    try{map.setLayoutProperty('bld-foot-line','visibility','none');}catch(e){}
+    push3DBuildings();
+  }else{
+    // Saliendo de 3D: limpiar datos del GL layer
+    if(shadowGLLayer){shadowGLLayer.clear();map.triggerRepaint();}
+    canvas.style.display= IS_MOBILE ? 'none' : '';
+    map.easeTo({pitch:0,bearing:0,duration:500});
+    try{map.setLayoutProperty('bld-3d','visibility','none');}catch(e){}
+    // GL layer maneja sombras en desktop y móvil — bld-shadows GeoJSON no se usa
+    try{map.setLayoutProperty('bld-shadows','visibility','none');}catch(e){}
+    try{map.getSource('madrid-shadows').setData({type:'FeatureCollection',features:[]});}catch(e){}
+    if(IS_MOBILE){
+      try{map.setLayoutProperty('bld-foot-fill','visibility','visible');}catch(e){}
+      try{map.setLayoutProperty('bld-foot-line','visibility','visible');}catch(e){}
+    }
+  }
+  checkLOD();shadowDirty=true;scheduleRender();
+  scheduleGeoUpdate(true);
+}
+function resetCam(){
+  if(mode==='3d')map.easeTo({pitch:52,bearing:-18,duration:600});
+  else map.easeTo({pitch:0,bearing:0,duration:500});
+}
+function checkLOD(){
+  if(!mapReady)return;
+  const zoom=map.getZoom();
+  const tooFar=zoom<SHADOW_MIN_ZOOM;
+  document.getElementById('lodbar').style.display=tooFar?'block':'none';
+  if(tooFar)clearGeoLayers();
+}
+
+// ── COMPASS ──────────────────────────────────────────────────────────────────
+function updateBearing(){
+  if(!map)return;
+  const b=map.getBearing();
+  const dial=document.getElementById('compass-dial');
+  // SVG rotate(angle, cx, cy) — tres parámetros, rota alrededor del centro (25,25)
+  if(dial)dial.setAttribute('transform',`rotate(${(-b).toFixed(2)} 25 25)`);
+}
+function updateCompassDot(az,el){
+  const dot=document.getElementById('sdot'),ray=document.getElementById('sray');
+  if(el<=0){dot.setAttribute('opacity','0');ray.setAttribute('opacity','0');return;}
+  const R=12,cx=25,cy=25;
+  // Azimut absoluto — el grupo compass-dial ya rota con el bearing del mapa,
+  // así que aquí usamos el azimut geográfico directamente.
+  const sunA=rd(az);
+  dot.setAttribute('cx',(cx+R*Math.sin(sunA)).toFixed(1));
+  dot.setAttribute('cy',(cy-R*Math.cos(sunA)).toFixed(1));
+  dot.setAttribute('opacity','1');
+  const shA=rd(az+180);
+  ray.setAttribute('x2',(cx+R*Math.sin(shA)).toFixed(1));
+  ray.setAttribute('y2',(cy-R*Math.cos(shA)).toFixed(1));
+  ray.setAttribute('opacity','0.85');
+}
+
+// ── LIGHT ────────────────────────────────────────────────────────────────────
+function applyLight(){
+  if(!mapReady)return;
+  const p=sunPos(curMins,MAP_LAT,MAP_LON);
+  if(p.el>0){
+    const w=Math.min(1,(p.el-2)/35),i=Math.max(0.15,Math.min(0.90,p.el/90*0.90+0.15));
+    try{map.setLight({anchor:'map',color:`rgb(255,${Math.round(215+w*40)},${Math.round(160+w*60)})`,intensity:i,position:[1.5,p.az,Math.max(4,90-p.el)]});}catch(e){}
+  }else{
+    try{map.setLight({anchor:'map',color:'#8090c0',intensity:0.08,position:[1.5,0,90]});}catch(e){}
+  }
+  updateCompassDot(p.az,p.el);
+}
+
+// ── SOLAR MATH ───────────────────────────────────────────────────────────────
+function doy(d){return Math.floor((d-new Date(d.getFullYear(),0,0))/864e5);}
+function fmtH(h){h=((h%24)+24)%24;const hh=Math.floor(h),mm=Math.round((h-hh)*60);if(mm>=60)return String((hh+1)%24).padStart(2,'0')+':00';return String(hh).padStart(2,'0')+':'+String(mm).padStart(2,'0');}
+function fmtM(m){return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');}
+function makeDate(mins){return new Date(curDate.getFullYear(),curDate.getMonth(),curDate.getDate(),Math.floor(mins/60),mins%60,0,0);}
+function sunPos(mins,lat,lon){
+  const d=makeDate(mins),N=doy(d),hrUTC=d.getUTCHours()+d.getUTCMinutes()/60;
+  const B=rd(360/365*(N-81)),dclR=rd(23.45*Math.sin(B));
+  const eot=(9.87*Math.sin(2*B)-7.53*Math.cos(B)-1.5*Math.sin(B))/60;
+  const haR=rd(15*(hrUTC+lon/15+eot-12)),phiR=rd(lat);
+  const sinEl=Math.sin(phiR)*Math.sin(dclR)+Math.cos(phiR)*Math.cos(dclR)*Math.cos(haR);
+  const el=dg(Math.asin(Math.max(-1,Math.min(1,sinEl))));
+  let az=180;const cEl=Math.cos(rd(el));
+  if(cEl>1e-4){const ca=(Math.sin(dclR)-Math.sin(phiR)*sinEl)/(Math.cos(phiR)*cEl);az=dg(Math.acos(Math.max(-1,Math.min(1,ca))));if(haR>0)az=360-az;}
+  return{el,az};
+}
+function sunTimes(lat,lon){
+  const d=new Date(curDate),N=doy(d),B=rd(360/365*(N-81));
+  const dclR=rd(23.45*Math.sin(B));
+  const eot=(9.87*Math.sin(2*B)-7.53*Math.cos(B)-1.5*Math.sin(B))/60;
+  const cosH=-Math.tan(rd(lat))*Math.tan(dclR);
+  if(cosH<-1)return{sr:0,ss:24};if(cosH>1)return{sr:12,ss:12};
+  const H0=dg(Math.acos(cosH)),noonUTC=12-lon/15-eot,tzH=-d.getTimezoneOffset()/60;
+  return{sr:noonUTC-H0/15+tzH,ss:noonUTC+H0/15+tzH};
+}
+
+// ── DAY/NIGHT UI ─────────────────────────────────────────────────────────────
+function updateDayNightUI(){
+  const p=sunPos(curMins,MAP_LAT,MAP_LON),t=sunTimes(MAP_LAT,MAP_LON);
+  const isNight=p.el<=0,isTwi=p.el>0&&p.el<4;
+  document.getElementById('nightbanner').style.display=isNight?'block':'none';
+  document.getElementById('twibanner').style.display=isTwi?'block':'none';
+  document.getElementById('nb-sr').textContent=fmtH(t.sr);
+  document.getElementById('nb-ss').textContent=fmtH(t.ss);
+  document.getElementById('mapnight').style.display=isNight?'flex':'none';
+  document.getElementById('maptwi').style.display=isTwi?'block':'none';
+  if(isNight)document.getElementById('mn-sub').textContent=`Amanecer: ${fmtH(t.sr)} · Atardecer: ${fmtH(t.ss)}`;
+  return{p,t};
+}
+
+// ── WEATHER ──────────────────────────────────────────────────────────────────
+async function fetchWeather(lat,lon){
+  wLoaded=false;hCloud=[];hCode=[];hPrec=[];hUV=[];hTemp=[];wDates=[];dData={};
+  try{
+    const url=`https://api.open-meteo.com/v1/forecast?latitude=${parseFloat(lat).toFixed(4)}&longitude=${parseFloat(lon).toFixed(4)}&hourly=cloud_cover,weather_code,precipitation,uv_index,temperature_2m&daily=weather_code,precipitation_sum,cloud_cover_mean,temperature_2m_max,temperature_2m_min&forecast_days=7&timezone=auto`;
+    const r=await fetch(url);
+    if(!r.ok)throw new Error(r.status);
+    const data=await r.json();
+    hCloud=data.hourly.cloud_cover;
+    hCode=data.hourly.weather_code;
+    hPrec=data.hourly.precipitation;
+    hUV=data.hourly.uv_index;
+    hTemp=data.hourly.temperature_2m;
+    wDates=data.hourly.time.map(t=>t.slice(0,10));
+    dData=data.daily;
+    wLoaded=true;
+    renderForecast();
+    updateWeatherUI();
+  }catch(e){
+    document.getElementById('wxdesc').textContent='No disponible';
+    console.warn('Weather fetch failed:',e);
+  }
+}
+
+function getCurCloud(){
+  if(!wLoaded)return null;
+  const ds=getLocalIsoDate(curDate),base=wDates.indexOf(ds);
+  return base>=0?(hCloud[base+Math.floor(curMins/60)]??null):null;
+}
+
+function updateWeatherUI(){
+  if(!wLoaded)return;
+  const ds=getLocalIsoDate(curDate);
+  const base=wDates.indexOf(ds);
+  if(base<0){
+    document.getElementById('uvnum').textContent='--';
+    document.getElementById('uvbadge').textContent='--';
+    document.getElementById('uvspf').textContent='';
+    document.getElementById('uvtip').textContent='Fuera de rango';
+    document.getElementById('wxtemp').textContent='--°';
+    document.getElementById('wxicon').textContent='📅';
+    document.getElementById('wxdesc').textContent='Datos no disponibles';
+    document.getElementById('wxsub').textContent='Selecciona un día en los próximos 7 días';
+    document.getElementById('wx-nubes').textContent='--%';
+    document.getElementById('wx-prec').textContent='-- mm';
+    updateWxBubble(null,null,null,null);
+    return;
+  }
+  const idx=base+Math.floor(curMins/60);
+  if(idx<0||idx>=hUV.length)return;
+  if(hUV[idx]!==undefined){
+    const rawUV=hUV[idx];
+    const cldPct=hCloud[idx]!==undefined?hCloud[idx]:0;
+    // Reducción por nubes: fórmula empírica (Kasten & Czeplak aproximado)
+    // 0 nubes → sin reducción; 100% nubes → ~70% reducción
+    const cloudFactor=1-0.70*(cldPct/100)**0.75;
+    const uv=Math.max(0,rawUV*cloudFactor);
+    const ui=uvInfo(uv);
+    document.getElementById('uvnum').textContent=uv.toFixed(1);
+    document.getElementById('uvbadge').textContent=ui.lv;
+    document.getElementById('uvbadge').style.background=ui.bg;
+    document.getElementById('uvbadge').style.color=ui.bc;
+    document.getElementById('uvspf').textContent=ui.spf;
+    document.getElementById('uvcur').style.left=(ui.pct*100).toFixed(1)+'%';
+    document.getElementById('uvtip').textContent=ui.tip;
+  }
+  const code=hCode[idx]!==undefined?hCode[idx]:0;
+  const cld=hCloud[idx]!==undefined?hCloud[idx]:0;
+  const prc=hPrec[idx]!==undefined?hPrec[idx]:0;
+  const temp=hTemp[idx]!==undefined?hTemp[idx]:null;
+  const uv=hUV[idx]!==undefined?(()=>{
+    const raw=hUV[idx];const cld=hCloud[idx]!==undefined?hCloud[idx]:0;
+    return Math.max(0,raw*(1-0.70*(cld/100)**0.75));
+  })():null;
+  if(temp!==null)document.getElementById('wxtemp').textContent=Math.round(temp)+'°';
+  else document.getElementById('wxtemp').textContent='--°';
+  document.getElementById('wxicon').textContent=wmoI[code]||'🌡';
+  document.getElementById('wxdesc').textContent=wmoD[code]||'—';
+  document.getElementById('wxsub').textContent=prc>0?'Precipitación detectada':`Cielo ${cld<20?'despejado':cld<50?'parcialmente nublado':'cubierto'}`;
+  document.getElementById('wx-nubes').textContent=cld+'%';
+  document.getElementById('wx-prec').textContent=prc.toFixed(1)+' mm';
+  updateWxBubble(wmoI[code],temp,cld,prc,uv);
+}
+
+function updateWxBubble(icon,temp,cld,prc,uv){
+  const bub=document.getElementById('wxbubble');
+  if(temp===null&&icon===null){bub.style.display='none';return;}
+  bub.style.display='flex';
+  document.getElementById('wxb-icon').textContent=icon||'--';
+  document.getElementById('wxb-temp').textContent=temp!==null?Math.round(temp)+'°':'--°';
+  const parts=[];
+  if(cld!==null)parts.push(`☁ ${Math.round(cld)}%`);
+  if(prc!==null&&prc>0)parts.push(`🌧 ${prc.toFixed(1)}mm`);
+  if(uv!==null)parts.push(`UV ${uv.toFixed(0)}`);
+  document.getElementById('wxb-mini').textContent=parts.join('\n');
+}
+
+const wmoD={0:'Despejado',1:'Casi despejado',2:'Parcialmente nublado',3:'Cubierto',45:'Niebla',48:'Niebla engelante',51:'Llovizna leve',53:'Llovizna',55:'Llovizna intensa',61:'Lluvia leve',63:'Lluvia',65:'Lluvia intensa',71:'Nevada leve',73:'Nevada',75:'Nevada intensa',80:'Chubascos',82:'Chubascos fuertes',95:'Tormenta',99:'Tormenta intensa'};
+const wmoI={0:'☀️',1:'🌤',2:'⛅',3:'☁️',45:'🌫',48:'🌫',51:'🌦',53:'🌧',55:'🌧',61:'🌦',63:'🌧',65:'🌧',71:'🌨',73:'🌨',75:'❄️',80:'🌦',82:'⛈',95:'⛈',99:'⛈'};
+
+function renderForecast(){
+  const el=document.getElementById('fcast');el.innerHTML='';
+  (dData.time||[]).forEach((dt,i)=>{
+    const code=dData.weather_code[i];
+    const d2=new Date(dt+'T12:00:00'),lbl=['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'][d2.getDay()];
+    const tempMax=dData.temperature_2m_max&&dData.temperature_2m_max[i]!==undefined?`${dData.temperature_2m_max[i].toFixed(0)}°`:'--';
+    const tempMin=dData.temperature_2m_min&&dData.temperature_2m_min[i]!==undefined?`${dData.temperature_2m_min[i].toFixed(0)}°`:'--';
+    const row=document.createElement('div');row.className='frow';
+    row.innerHTML=`<span class="fi">${wmoI[code]||'🌡'}</span><span class="fn">${lbl}</span><span class="fd">${wmoD[code]||'—'}</span><span class="fc">${tempMin}/${tempMax}</span>`;
+    row.onclick=()=>{curDate=new Date(dt+'T00:00:00');document.getElementById('din').value=dt;update();fetchWeather(MAP_LAT,MAP_LON);};
+    el.appendChild(row);
+  });
+}
+
+function uvInfo(uv){
+  if(uv==null)return null;const pct=Math.min(uv/11,1);
+  if(uv<3)return{lv:'Bajo',bg:'rgba(29,158,117,.15)',bc:'#1D9E75',spf:'Sin riesgo',tip:'Sin riesgo solar significativo.',pct};
+  if(uv<6)return{lv:'Moderado',bg:'rgba(239,159,39,.15)',bc:'#EF9F27',spf:'SPF 30+',tip:'Protector recomendado 20 min antes de salir.',pct};
+  if(uv<8)return{lv:'Alto',bg:'rgba(216,90,48,.15)',bc:'#D85A30',spf:'SPF 50+',tip:'Evita el sol al mediodía. Busca sombra.',pct};
+  if(uv<11)return{lv:'Muy alto',bg:'rgba(226,75,74,.15)',bc:'#E24B4A',spf:'SPF 50+',tip:'Riesgo extremo. Camisa, gafas y sombrero.',pct};
+  return{lv:'Extremo',bg:'rgba(127,119,221,.15)',bc:'#7F77DD',spf:'SPF 50+',tip:'¡Peligro! No salgas sin protección total.',pct};
+}
+
+function drawStrip(){
+  const cv=document.getElementById('wsc');if(!cv)return;
+  const W=Math.max(cv.offsetWidth||220,220)*2;cv.width=W;
+  const ctx=cv.getContext('2d');ctx.clearRect(0,0,W,10);
+  const t=sunTimes(MAP_LAT,MAP_LON);
+  const nc=theme==='dark'?'rgba(10,15,40,.50)':'rgba(20,30,80,.09)';
+  const dc=theme==='dark'?'rgba(255,180,50,.06)':'rgba(255,200,70,.07)';
+  const srX=(Math.max(0,t.sr)/24)*W,ssX=(Math.min(24,t.ss)/24)*W;
+  ctx.fillStyle=nc;ctx.fillRect(0,0,srX,10);
+  ctx.fillStyle=dc;ctx.fillRect(srX,0,ssX-srX,10);
+  ctx.fillStyle=nc;ctx.fillRect(ssX,0,W-ssX,10);
+  if(wLoaded){
+    const ds=getLocalIsoDate(curDate),base=wDates.indexOf(ds);
+    for(let h=0;h<24;h++){
+      const c=base>=0?(hCloud[base+h]??50):50,cd=base>=0?(hCode[base+h]??0):0;
+      const x=(h/24)*W,w2=W/24;
+      const isR=[51,53,55,61,63,65,80,81,82,95,96,99].includes(cd);
+      ctx.fillStyle=isR?`rgba(60,100,220,${.35+c/100*.45})`:`rgba(${Math.round(180-c/100*60)},${Math.round(190-c/100*55)},${Math.round(220-c/100*50)},.30)`;
+      ctx.fillRect(x,0,w2,10);
+    }
+  }
+  const cx=(curMins/1440)*W;ctx.fillStyle='rgba(232,125,13,.95)';ctx.fillRect(cx-1.5,0,3,10);
+}
+
+// ── PANEL UPDATE ─────────────────────────────────────────────────────────────
+function updatePanel(){
+  const{p,t}=updateDayNightUI();
+  const timeStr=fmtM(curMins);
+  document.getElementById('tbig').textContent=timeStr;
+  document.getElementById('mob-timemini').textContent=timeStr;
+  document.getElementById('sunst').textContent=p.el>0?`Sol a ${p.el.toFixed(1)}° de elevación`:'Sol bajo el horizonte';
+  document.getElementById('staz').textContent=p.el>0?Math.round(p.az)+'°':'—';
+  document.getElementById('stel').textContent=p.el.toFixed(1)+'°';
+  document.getElementById('stsr').textContent=fmtH(t.sr);
+  document.getElementById('stss').textContent=fmtH(t.ss);
+  document.getElementById('srlbl').textContent=fmtH(t.sr);
+  document.getElementById('sslbl').textContent=fmtH(t.ss);
+  updateWeatherUI();
+  applyLight();drawStrip();
+  scheduleGeoUpdate(); // sun position changed → recalculate shadow geometry
+  shadowDirty=true;scheduleRender();
+}
+function update(){updatePanel();}
+
+// Volver a la hora actual al pulsar el reloj
+function resetToNow(){
+  const now=new Date();
+  curMins=now.getHours()*60+now.getMinutes();
+  document.getElementById('tsl').value=curMins;
+  document.getElementById('tsl-mob').value=curMins;
+  // Flash visual de confirmación
+  ['tbig','mob-timemini'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(!el)return;
+    el.style.color='#e87d0d';
+    setTimeout(()=>el.style.color='',600);
+  });
+  update();
+}
+
+// ── UI CONTROLS ──────────────────────────────────────────────────────────────
+// Tabs
+function showTab(name){
+  document.querySelectorAll('.ptab').forEach(b=>{b.classList.remove('active');b.setAttribute('aria-selected','false');});
+  document.querySelectorAll('.tab-pane').forEach(p=>p.classList.remove('active'));
+  const btn=document.getElementById('tab-btn-'+name);
+  if(btn){btn.classList.add('active');btn.setAttribute('aria-selected','true');}
+  document.getElementById('tab-'+name).classList.add('active');
+  if(name==='favs')renderFavs();
+  // En móvil, abrir el panel al pulsar una pestaña
+  if(IS_MOBILE&&!mobExpanded)setMobilePanel(true);
+}
+
+// Panel toggle (desktop)
+let panelHidden=false;
+function togglePanel(){
+  panelHidden=!panelHidden;
+  document.getElementById('app').classList.toggle('panel-hidden',panelHidden);
+  document.getElementById('panel-toggle').textContent=panelHidden?'›':'‹';
+  setTimeout(()=>{resizeCanvas();shadowDirty=true;scheduleRender();},300);
+}
+
+// Mobile panel: continuous drag handle is set up via the IIFE above.
+// Tab pill tap = toggle is also handled there.
+// setMobilePanel / toggleMobilePanel still used by programmatic expand.
+let mobExpanded=false;
+function setMobilePanel(expand){
+  mobExpanded=expand;
+  const panel=document.getElementById('panel');
+  panel.classList.add('mob-anim');
+  panel.classList.toggle('mob-collapsed',!expand);
+  setTimeout(()=>panel.classList.remove('mob-anim'),240);
+}
+function toggleMobilePanel(){setMobilePanel(!mobExpanded);}
+
+// Search toggle
+let searchOpen=false;
+function toggleSearch(){
+  searchOpen=!searchOpen;
+  document.getElementById('search-overlay').style.display=searchOpen?'block':'none';
+  document.getElementById('search-btn').classList.toggle('onsearch',searchOpen);
+  if(searchOpen)setTimeout(()=>document.getElementById('srch').focus(),80);
+  else{document.getElementById('sres').style.display='none';}
+}
+
+// ── SLIDERS (main + mobile mini) ─────────────────────────────────────────────
+document.getElementById('tsl').addEventListener('input',function(){
+  if(playTimer)stopPlay();
+  curMins=+this.value;
+  document.getElementById('tsl-mob').value=this.value;
+  update();
+});
+document.getElementById('tsl-mob').addEventListener('input',function(){
+  curMins=+this.value;
+  document.getElementById('tsl').value=this.value;
+  document.getElementById('mob-timemini').textContent=fmtM(curMins);
+  update();
+});
+document.getElementById('din').addEventListener('change',function(){
+  curDate=new Date(this.value+'T00:00:00');
+  update();fetchWeather(MAP_LAT,MAP_LON);
+});
+
+// ── SEARCH ───────────────────────────────────────────────────────────────────
+let stmr;
+document.getElementById('srch').addEventListener('input',function(){
+  clearTimeout(stmr);const q=this.value.trim();
+  const box=document.getElementById('sres');
+  if(q.length<2){box.style.display='none';return;}
+  // Mostrar estado "buscando" inmediatamente
+  box.innerHTML=`<div class="sresrow" style="color:var(--dim);display:flex;align-items:center;gap:8px;"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid var(--border);border-top-color:#e87d0d;animation:spin .7s linear infinite;flex-shrink:0"></span>Buscando…</div>`;
+  box.style.display='block';
+  stmr=setTimeout(async()=>{
+    try{
+      const r=await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q+', Madrid')}&format=json&limit=5&bounded=1&viewbox=-3.888,40.644,-3.518,40.310`);
+      const data=await r.json();
+      box.innerHTML='';box.style.display='block';
+      if(!data.length){box.innerHTML=`<div class="sresrow" style="color:var(--dim)">Sin resultados</div>`;return;}
+      data.forEach(item=>{
+        const d=document.createElement('div');d.className='sresrow';
+        d.textContent=item.display_name.split(',').slice(0,3).join(', ');
+        d.onclick=()=>{
+          MAP_LAT=parseFloat(item.lat);MAP_LON=parseFloat(item.lon);
+          map.flyTo({center:[MAP_LON,MAP_LAT],zoom:17.5,pitch:mode==='3d'?52:0,bearing:mode==='3d'?-18:0,duration:1400,essential:true});
+          box.style.display='none';document.getElementById('srch').value='';
+          toggleSearch();
+          fetchWeather(MAP_LAT,MAP_LON);
+        };box.appendChild(d);
+      });
+    }catch(e){
+      box.innerHTML=`<div class="sresrow" style="color:var(--dim)">Error al buscar</div>`;
+    }
+  },300);
+});
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#search-overlay')&&!e.target.closest('#search-btn')){
+    if(searchOpen)toggleSearch();
+  }
+});
+
+// ── GEOLOCATION ──────────────────────────────────────────────────────────────
+let geoWatchId=null;
+
+// ── NOTIFICATION SYSTEM ───────────────────────────────────────────────────────
+let _activeNotif=null;
+function showNotif(state,msg,autohide=0){
+  // Eliminar notificación previa de geo si existe
+  if(_activeNotif&&_activeNotif.parentNode){_activeNotif.parentNode.removeChild(_activeNotif);}
+  const el=document.createElement('div');
+  el.className='notif'+(state?' '+state:'');
+  el.innerHTML=`<div class="notif-dot"></div><span class="notif-txt">${msg}</span>`;
+  // Insertar antes del lodbar (que siempre es el último/más bajo)
+  const stack=document.getElementById('notif-stack');
+  const lodbar=document.getElementById('lodbar');
+  stack.insertBefore(el,lodbar);
+  _activeNotif=el;
+  if(autohide>0)setTimeout(()=>{if(el.parentNode)el.parentNode.removeChild(el);if(_activeNotif===el)_activeNotif=null;},autohide);
+  return el;
+}
+function hideNotif(el,delay=0){
+  if(!el)return;
+  setTimeout(()=>{if(el.parentNode)el.parentNode.removeChild(el);if(_activeNotif===el)_activeNotif=null;},delay);
+}
+
+function requestLocation(){
+  if(!("geolocation" in navigator)){showNotif('locerr','Geolocalización no disponible',4000);return;}
+  if(geoWatchId!==null){navigator.geolocation.clearWatch(geoWatchId);geoWatchId=null;}
+
+  const btn=document.getElementById('loc-btn');
+  let notifEl=showNotif('locating','Buscando tu ubicación…');
+
+  function setToast(state,msg){
+    if(notifEl&&notifEl.parentNode)notifEl.parentNode.removeChild(notifEl);
+    notifEl=showNotif(state,msg);
+    _activeNotif=notifEl;
+  }
+  function hideToast(delay=3000){hideNotif(notifEl,delay);}
+
+  btn.classList.remove('locok','locerr');
+  btn.classList.add('locating');
+  btn.title='Obteniendo ubicación…';
+
+  let bestAccuracy=Infinity;
+  let settled=false;
+
+  const applyPos=pos=>{
+    const{longitude:lon,latitude:lat,accuracy}=pos.coords;
+    if(lon>-19&&lon<5&&lat>27&&lat<44&&accuracy<bestAccuracy){
+      bestAccuracy=accuracy;
+      MAP_LAT=lat; MAP_LON=lon;
+      map.flyTo({center:[lon,lat],zoom:17.5,duration:900});
+      fetchWeather(lat,lon);
+      updatePanel();
+      btn.classList.remove('locating','locerr');
+      btn.classList.add('locok');
+      const acc=accuracy<10?'<10 m':accuracy<50?`~${Math.round(accuracy)} m`:`~${Math.round(accuracy/100)*100} m`;
+      btn.title=`Ubicación obtenida (±${acc})`;
+      setToast('locok',`Ubicación obtenida · ±${acc}`);
+      // Si ya es suficientemente preciso, paramos el watch
+      if(accuracy<100&&!settled){
+        settled=true;
+        if(geoWatchId!==null){navigator.geolocation.clearWatch(geoWatchId);geoWatchId=null;}
+        hideToast(2500);
+      }
+    }
+  };
+
+  const onErr=err=>{
+    // Solo mostrar error si no tenemos ya una posición
+    if(bestAccuracy===Infinity){
+      btn.classList.remove('locating','locok');
+      btn.classList.add('locerr');
+      const msgs={1:'Permiso denegado',2:'Posición no disponible',3:'Tiempo de espera agotado'};
+      const msg=msgs[err.code]||'Error de geolocalización';
+      btn.title=msg;
+      setToast('locerr','📍 '+msg);
+      hideToast(4000);
+    }
+    if(geoWatchId!==null){navigator.geolocation.clearWatch(geoWatchId);geoWatchId=null;}
+  };
+
+  // Paso 1: getCurrentPosition — respuesta inmediata (usa caché de red/WiFi si la hay)
+  navigator.geolocation.getCurrentPosition(applyPos, ()=>{}, {enableHighAccuracy:false,timeout:5000,maximumAge:30000});
+
+  // Paso 2: watchPosition con GPS — refina progresivamente
+  geoWatchId=navigator.geolocation.watchPosition(applyPos, onErr,
+    {enableHighAccuracy:true, timeout:20000, maximumAge:0}
+  );
+
+  // Cortar watch tras 30 s
+  setTimeout(()=>{
+    if(geoWatchId!==null){
+      navigator.geolocation.clearWatch(geoWatchId);
+      geoWatchId=null;
+      if(!settled){
+        btn.classList.remove('locating');
+        if(bestAccuracy<Infinity){
+          btn.classList.add('locok');
+          btn.title=`Mejor precisión: ±${Math.round(bestAccuracy)} m`;
+          setToast('locok',`Mejor ubicación: ±${Math.round(bestAccuracy)} m`);
+        } else {
+          btn.classList.add('locerr');
+          btn.title='No se pudo obtener la ubicación';
+          setToast('locerr','No se pudo obtener la ubicación');
+        }
+        hideToast(3000);
+      }
+    }
+  },30000);
+}
+
+// ── HELPERS ───────────────────────────────────────────────────────────────────
+function escHtml(s){return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');}
+
+// ── FAVORITOS ────────────────────────────────────────────────────────────────
+const FAV_KEY='smfavs', FAV_MAX=5;
+let favs=[];
+let _favDeleteTimers={};  // id → setTimeout handle (confirmación 2 pasos)
+
+function loadFavs(){
+  try{favs=JSON.parse(localStorage.getItem(FAV_KEY)||'[]');}catch{favs=[];}
+}
+function saveFavs(){
+  try{localStorage.setItem(FAV_KEY,JSON.stringify(favs));}catch(e){console.warn('localStorage full',e);}
+}
+
+// Burbuja flotante sobre el botón ☆
+function showSaveBubble(){
+  const btn=document.getElementById('fav-btn');
+  const bub=document.getElementById('save-bubble');
+  if(!btn||!bub)return;
+  const br=btn.getBoundingClientRect();
+  const tr=document.getElementById('toolbar').getBoundingClientRect();
+  bub.style.left=(br.left-tr.left+br.width/2)+'px';
+  bub.style.bottom=(tr.height+4)+'px';
+  bub.style.transform='translateX(-50%)';
+  bub.classList.remove('pop');
+  void bub.offsetWidth; // reflow para reiniciar animación
+  bub.classList.add('pop');
+}
+
+async function addFav(){
+  loadFavs();
+  if(favs.length>=FAV_MAX){
+    showNotif('locerr',`Máximo de ${FAV_MAX} favoritos — elimina alguno primero`,3500);
+    showTab('favs');
+    return;
+  }
+  // Geocodificación inversa para nombre legible
+  let name=`${MAP_LAT.toFixed(5)}, ${MAP_LON.toFixed(5)}`;
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${MAP_LAT}&lon=${MAP_LON}&format=json&accept-language=es`);
+    if(r.ok){
+      const d=await r.json();
+      const a=d.address||{};
+      const parts=[a.road||a.pedestrian||a.path,a.suburb||a.neighbourhood||a.quarter,a.city||a.town||a.village].filter(Boolean);
+      if(parts.length)name=parts.join(', ');
+    }
+  }catch{}
+  const fav={id:Date.now(),name,lat:MAP_LAT,lon:MAP_LON,zoom:map?Math.round(map.getZoom()*10)/10:17.5,pitch:map?Math.round(map.getPitch()):0,bearing:map?Math.round(map.getBearing()):0,mode};
+  favs.push(fav);
+  saveFavs();
+  renderFavs();
+  // Botón ☆ → ★ naranja + burbuja
+  const btn=document.getElementById('fav-btn');
+  btn.textContent='★';btn.style.color='#e87d0d';
+  setTimeout(()=>{btn.textContent='☆';btn.style.color='';},2200);
+  showSaveBubble();
+  showTab('favs');
+}
+
+// ── MODAL NOMBRE FAVORITO ─────────────────────────────────────────────────────
+let _favModalDefaultName='';
+
+async function openFavModal(){
+  // Estrella de la barra: usa posición actual del mapa
+  clearTempPin();
+  await openFavModalAt(MAP_LAT,MAP_LON);
+}
+
+async function openFavModalAt(lat,lon){
+  loadFavs();
+  if(favs.length>=FAV_MAX){
+    showNotif('locerr',`Máximo de ${FAV_MAX} favoritos — elimina alguno primero`,3500);
+    showTab('favs');
+    clearTempPin();
+    return;
+  }
+  // Geocodificación inversa
+  let name=`${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+  try{
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json&accept-language=es`);
+    if(r.ok){
+      const d=await r.json();const a=d.address||{};
+      const parts=[a.road||a.pedestrian||a.path,a.suburb||a.neighbourhood||a.quarter,a.city||a.town||a.village].filter(Boolean);
+      if(parts.length)name=parts.join(', ');
+    }
+  }catch{}
+  _favModalDefaultName=name;
+  _pickLat=lat;_pickLon=lon;
+  const inp=document.getElementById('fav-modal-inp');
+  inp.value=name;
+  document.getElementById('fav-modal-overlay').classList.add('open');
+  setTimeout(()=>{inp.focus();inp.select();},80);
+}
+
+function cancelFavModal(){
+  document.getElementById('fav-modal-overlay').classList.remove('open');
+  clearTempPin();
+}
+
+function confirmFavModal(){
+  const inp=document.getElementById('fav-modal-inp');
+  const name=(inp.value.trim())||_favModalDefaultName;
+  document.getElementById('fav-modal-overlay').classList.remove('open');
+  loadFavs();
+  const lat=_pickLat!==null?_pickLat:MAP_LAT;
+  const lon=_pickLon!==null?_pickLon:MAP_LON;
+  const fav={id:Date.now(),name,lat,lon};
+  favs.push(fav);
+  saveFavs();
+  renderFavs();
+  clearTempPin();
+  const btn=document.getElementById('fav-btn');
+  btn.textContent='★';btn.style.color='#e87d0d';
+  setTimeout(()=>{btn.textContent='☆';btn.style.color='';},2200);
+  showSaveBubble();
+  toast('⭐ Guardado en favoritos','locok',2800);
+  showTab('favs');
+}
+
+// Teclado en el modal
+document.addEventListener('keydown',e=>{
+  const overlay=document.getElementById('fav-modal-overlay');
+  if(!overlay.classList.contains('open'))return;
+  if(e.key==='Enter'){e.preventDefault();confirmFavModal();}
+  if(e.key==='Escape'){e.preventDefault();cancelFavModal();}
+});
+
+// Confirmación en 2 pasos: primer clic → pide confirmación; segundo → borra
+function confirmDeleteFav(id){
+  if(_favDeleteTimers[id]){
+    // Segundo clic: confirmar borrado
+    clearTimeout(_favDeleteTimers[id]);
+    delete _favDeleteTimers[id];
+    favs=favs.filter(f=>f.id!==id);
+    saveFavs();
+    renderFavs();
+  }else{
+    // Primer clic: pedir confirmación
+    const btn=document.getElementById('fdel-'+id);
+    if(!btn)return;
+    btn.textContent='¿Borrar?';
+    btn.classList.add('fav-del-confirm');
+    _favDeleteTimers[id]=setTimeout(()=>{
+      delete _favDeleteTimers[id];
+      if(btn&&btn.isConnected){btn.textContent='✕';btn.classList.remove('fav-del-confirm');}
+    },3000);
+  }
+}
+
+// Edición inline del nombre
+function startRenameFav(id){
+  const nameEl=document.getElementById('fname-'+id);
+  if(!nameEl)return;
+  const fav=favs.find(f=>f.id===id);
+  if(!fav)return;
+  const inp=document.createElement('input');
+  inp.type='text';inp.className='fav-name-input';inp.value=fav.name;inp.maxLength=60;
+  nameEl.replaceWith(inp);
+  inp.focus();inp.select();
+  const commit=()=>{
+    const v=inp.value.trim();
+    if(v)fav.name=v;
+    saveFavs();
+    renderFavs();
+  };
+  inp.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();commit();}if(e.key==='Escape')renderFavs();});
+  inp.addEventListener('blur',commit);
+}
+
+function goToFav(fav){
+  MAP_LAT=fav.lat;MAP_LON=fav.lon;
+  // Mantiene el zoom y modo actuales del usuario
+  const currentZoom=map?Math.max(map.getZoom(),SHADOW_MIN_ZOOM):SHADOW_MIN_ZOOM;
+  const currentPitch=map?map.getPitch():0;
+  const currentBearing=map?map.getBearing():0;
+  map.flyTo({center:[fav.lon,fav.lat],zoom:currentZoom,pitch:currentPitch,bearing:currentBearing,duration:1400,essential:true});
+  fetchWeather(fav.lat,fav.lon);
+  scheduleViewportFetch();
+  // Beacon al llegar
+  map.once('moveend',()=>showBeacon(fav.lat,fav.lon));
+}
+
+function renderFavs(){
+  loadFavs();
+  const list=document.getElementById('fav-list');
+  const counter=document.getElementById('fav-counter');
+  if(!list)return;
+  counter.textContent=`${favs.length} / ${FAV_MAX} favoritos`;
+  if(!favs.length){
+    list.innerHTML=`<div class="fav-empty"><div class="fav-empty-icon">⭐</div>Sin ubicaciones guardadas.<br>Navega a un lugar y pulsa<br><strong style="color:var(--text)">☆ en la barra superior</strong>.</div>`;
+    return;
+  }
+  list.innerHTML=favs.map(f=>`
+    <div class="fav-item" data-fid="${f.id}">
+      <div class="fav-body" data-action="go" role="button" tabindex="0" aria-label="Ir a ${escHtml(f.name)}">
+        <div class="fav-name" id="fname-${f.id}" title="${escHtml(f.name)}">${escHtml(f.name)}</div>
+        <div class="fav-meta">${f.lat.toFixed(4)}°N ${f.lon.toFixed(4)}°E</div>
+      </div>
+      <div class="fav-actions">
+        <button class="fav-btn-ic" data-action="rename" title="Renombrar" aria-label="Renombrar ${escHtml(f.name)}">✎</button>
+        <span class="fav-go" data-action="go" title="Ir" aria-label="Ir a ${escHtml(f.name)}" role="button" tabindex="0">→</span>
+        <button class="fav-btn-ic" id="fdel-${f.id}" data-action="del" title="Eliminar" aria-label="Eliminar ${escHtml(f.name)}">✕</button>
+      </div>
+    </div>`).join('');
+  // Delegación de eventos segura (sin JSON en onclick)
+  list.onclick=e=>{
+    const item=e.target.closest('[data-fid]');if(!item)return;
+    const id=+item.dataset.fid;
+    const fav=favs.find(f=>f.id===id);if(!fav)return;
+    const action=e.target.closest('[data-action]')?.dataset.action;
+    if(action==='go'){goToFav(fav);}
+    else if(action==='rename'){e.stopPropagation();startRenameFav(id);}
+    else if(action==='del'){e.stopPropagation();confirmDeleteFav(id);}
+    else{goToFav(fav);}
+  };
+  list.onkeydown=e=>{
+    if(e.key!=='Enter'&&e.key!==' ')return;
+    const item=e.target.closest('[data-fid]');if(!item)return;
+    const id=+item.dataset.fid;
+    const fav=favs.find(f=>f.id===id);if(!fav)return;
+    const action=e.target.closest('[data-action]')?.dataset.action;
+    if(action==='go'){e.preventDefault();goToFav(fav);}
+    else if(action==='rename'){e.preventDefault();startRenameFav(id);}
+    else if(action==='del'){e.preventDefault();confirmDeleteFav(id);}
+  };
+}
+
+// ── ONBOARDING ────────────────────────────────────────────────────────────────
+const ONB_KEY='smOnbDone';
+let onbStep=0;
+const ONB_TOTAL=6;
+
+function onbRender(){
+  const slides=document.getElementById('onb-slides');
+  const slideWidth=document.querySelector('.onb-slide').offsetWidth||310;
+  slides.style.transform=`translateX(-${onbStep*slideWidth}px)`;
+  // Dots
+  const dotsEl=document.getElementById('onb-dots');
+  dotsEl.innerHTML='';
+  for(let i=0;i<ONB_TOTAL;i++){
+    const d=document.createElement('div');
+    d.className='onb-dot'+(i===onbStep?' active':'');
+    dotsEl.appendChild(d);
+  }
+  // Botones
+  const prev=document.getElementById('onb-btn-prev');
+  const next=document.getElementById('onb-btn-next');
+  prev.style.visibility=onbStep===0?'hidden':'visible';
+  next.textContent=onbStep===ONB_TOTAL-1?'¡Empezar! 🚀':'Siguiente →';
+}
+
+function onbNext(){
+  if(onbStep<ONB_TOTAL-1){onbStep++;onbRender();}
+  else{closeOnboarding();}
+}
+function onbPrev(){
+  if(onbStep>0){onbStep--;onbRender();}
+}
+function closeOnboarding(){
+  document.getElementById('onboarding-overlay').classList.remove('open');
+  try{localStorage.setItem(ONB_KEY,'1');}catch{}
+}
+
+function maybeShowOnboarding(force=false){
+  if(!force){try{if(localStorage.getItem(ONB_KEY))return;}catch{}}
+  onbStep=0;
+  document.getElementById('onboarding-overlay').classList.add('open');
+  setTimeout(onbRender,60);
+}
+
+// Swipe en el onboarding
+(()=>{
+  let sx=0;
+  const box=()=>document.getElementById('onboarding-box');
+  document.getElementById('onboarding-overlay').addEventListener('touchstart',e=>{
+    sx=e.touches[0].clientX;
+  },{passive:true});
+  document.getElementById('onboarding-overlay').addEventListener('touchend',e=>{
+    const dx=sx-e.changedTouches[0].clientX;
+    if(Math.abs(dx)>40){dx>0?onbNext():onbPrev();}
+  },{passive:true});
+})();
+
+// ── BEACON (animación al ir a favorito) ─────────────────────────────────────
+let _beaconMoveHandler=null;
+
+function showBeacon(lat,lon){
+  hideBeacon();
+  const beacon=document.getElementById('map-beacon');
+  if(!beacon||!map)return;
+  const updatePos=()=>{
+    const pt=map.project([lon,lat]);
+    beacon.style.left=pt.x+'px';
+    beacon.style.top=pt.y+'px';
+  };
+  if(mode==='3d'){
+    beacon.innerHTML='<div class="beacon-beam"></div><div class="beacon-halo"></div>';
+  }else{
+    beacon.innerHTML='<div class="beacon-ring r1"></div><div class="beacon-ring r2"></div><div class="beacon-ring r3"></div><div class="beacon-dot"></div>';
+  }
+  updatePos();
+  beacon.style.display='block';
+  _beaconMoveHandler=updatePos;
+  map.on('move',_beaconMoveHandler);
+  setTimeout(()=>hideBeacon(),3800);
+}
+
+function hideBeacon(){
+  const beacon=document.getElementById('map-beacon');
+  if(beacon){beacon.style.display='none';beacon.innerHTML='';}
+  if(_beaconMoveHandler&&map){map.off('move',_beaconMoveHandler);_beaconMoveHandler=null;}
+}
+
+// ── PIN DROP (pulsación larga móvil / clic derecho escritorio) ───────────────
+let _lpTimer=null,_lpStartX=0,_lpStartY=0;
+let _pickLat=null,_pickLon=null;
+let _tempMarker=null;
+
+function setupPinDrop(){
+  const canvas=map.getCanvas();
+  const container=map.getContainer();
+
+  // ── Móvil: pulsación larga 1 s (con 100 ms de gracia para no confundir con arrastre) ──
+  let _lpGrace=null;
+  canvas.addEventListener('touchstart',e=>{
+    if(e.touches.length!==1)return;
+    clearTimeout(_lpTimer);clearTimeout(_lpGrace);
+    const t=e.touches[0];
+    _lpStartX=t.clientX;_lpStartY=t.clientY;
+    const rect=container.getBoundingClientRect();
+    const x=t.clientX-rect.left, y=t.clientY-rect.top;
+    // Esperar 100 ms antes de mostrar el anillo (descarta toques rápidos/arrastres)
+    _lpGrace=setTimeout(()=>{
+      showLPRing(t.clientX,t.clientY);
+      _lpTimer=setTimeout(()=>{
+        hideLPRing();
+        const pt=map.unproject([x,y]);
+        showContextMenu(pt.lat,pt.lng,t.clientX,t.clientY);
+      },1000); // 1 s de anillo visible = total 1.1 s desde el toque
+    },100);
+  },{passive:true});
+
+  const cancelLP=e=>{
+    clearTimeout(_lpGrace);_lpGrace=null;
+    if(!_lpTimer)return;
+    const t=e.changedTouches?e.changedTouches[0]:e.touches&&e.touches[0];
+    if(t){
+      const dx=Math.abs(t.clientX-_lpStartX),dy=Math.abs(t.clientY-_lpStartY);
+      if(dx>10||dy>10){clearTimeout(_lpTimer);_lpTimer=null;hideLPRing();}
+    }else{clearTimeout(_lpTimer);_lpTimer=null;hideLPRing();}
+  };
+  canvas.addEventListener('touchmove',cancelLP,{passive:true});
+  canvas.addEventListener('touchend',()=>{clearTimeout(_lpGrace);_lpGrace=null;clearTimeout(_lpTimer);_lpTimer=null;hideLPRing();},{passive:true});
+  canvas.addEventListener('touchcancel',()=>{clearTimeout(_lpGrace);_lpGrace=null;clearTimeout(_lpTimer);_lpTimer=null;hideLPRing();},{passive:true});
+
+  // ── Escritorio: clic derecho ──
+  map.on('contextmenu',e=>{
+    e.originalEvent&&e.originalEvent.preventDefault&&e.originalEvent.preventDefault();
+    showContextMenu(e.lngLat.lat,e.lngLat.lng,e.originalEvent.clientX,e.originalEvent.clientY);
+  });
+}
+
+function showLPRing(clientX,clientY){
+  const ring=document.getElementById('lp-ring');
+  const wrap=document.getElementById('mapwrap').getBoundingClientRect();
+  ring.style.left=(clientX-wrap.left)+'px';
+  ring.style.top=(clientY-wrap.top)+'px';
+  const circ=2*Math.PI*22;
+  ring.innerHTML=`<svg width="56" height="56" viewBox="0 0 56 56" xmlns="http://www.w3.org/2000/svg">
+    <circle cx="28" cy="28" r="22" fill="rgba(232,125,13,0.10)" stroke="rgba(232,125,13,0.25)" stroke-width="1.5"/>
+    <circle cx="28" cy="28" r="22" fill="none" stroke="rgba(232,125,13,0.92)" stroke-width="3.5"
+      stroke-dasharray="${circ.toFixed(2)}" stroke-dashoffset="${circ.toFixed(2)}"
+      stroke-linecap="round" transform="rotate(-90 28 28)"
+      style="animation:lp-stroke 1s linear forwards"/>
+  </svg>`;
+  ring.style.display='block';
+}
+function hideLPRing(){
+  const ring=document.getElementById('lp-ring');
+  ring.style.display='none';ring.innerHTML='';
+}
+
+async function triggerPinDrop(lat,lon){
+  if(_tempMarker){_tempMarker.remove();_tempMarker=null;}
+  _pickLat=lat;_pickLon=lon;
+  const el=document.createElement('div');
+  el.className='drop-pin-el';el.textContent='📍';
+  _tempMarker=new maplibregl.Marker({element:el,anchor:'bottom'}).setLngLat([lon,lat]).addTo(map);
+  await openFavModalAt(lat,lon);
+}
+
+function clearTempPin(){
+  if(_tempMarker){_tempMarker.remove();_tempMarker=null;}
+  _pickLat=null;_pickLon=null;
+}
+
+// ── PLAY MODE ─────────────────────────────────────────────────────────────────
+let playTimer=null, playMins=0;
+
+// Parámetros adaptativos según el contexto de renderizado:
+// - Desktop 2D: canvas overlay, solo scheduleRender → puede ir rápido
+// - Móvil 2D / 3D cualquiera: GeoJSON/GL → más costoso, step más grande y fps más lento
+function playParams(){
+  if(!IS_MOBILE && mode==='2d'){
+    return {step:4, fps:20};   // 24h en ~18 s, canvas overlay es ligero
+  }else if(IS_MOBILE){
+    return {step:10, fps:8};   // 24h en ~30 s, GeoJSON en móvil es más lento
+  }else{
+    return {step:8, fps:10};   // 3D desktop: WebGL stencil, paso medio
+  }
+}
+
+function togglePlay(){
+  if(playTimer){stopPlay();}else{startPlay();}
+}
+function startPlay(){
+  const btn=document.getElementById('play-btn');
+  btn.textContent='⏹';btn.classList.add('onplay');
+  btn.setAttribute('aria-label','Detener animación');
+  playMins=curMins;
+  const {step,fps}=playParams();
+  playTimer=setInterval(()=>{
+    playMins=(playMins+step)%1440;
+    curMins=playMins;
+    document.getElementById('tsl').value=curMins;
+    document.getElementById('tsl-mob').value=curMins;
+    // updatePanel ya llama scheduleGeoUpdate (con debounce de 80ms).
+    // En móvil/3D el debounce siempre se cancela porque el intervalo < 80ms.
+    // Solución: llamar directamente a updateGeoShadows si es necesario.
+    _playTick();
+  },1000/fps);
+}
+
+function _playTick(){
+  // Actualizar datos del panel (hora, sol, UV, etc.) sin tocar el geo
+  const{p,t}=updateDayNightUI();
+  const timeStr=fmtM(curMins);
+  document.getElementById('tbig').textContent=timeStr;
+  document.getElementById('mob-timemini').textContent=timeStr;
+  document.getElementById('sunst').textContent=p.el>0?`Sol a ${p.el.toFixed(1)}° de elevación`:'Sol bajo el horizonte';
+  applyLight();
+  drawStrip();
+  // Actualizar sombras directamente sin debounce
+  shadowDirty=true;
+  if(!IS_MOBILE && mode==='2d'){
+    scheduleRender(); // canvas overlay: rápido
+  }else{
+    updateGeoShadows(); // GeoJSON/GL: llamada directa, sin clearTimeout del debounce
+    map.triggerRepaint();
+  }
+  // Si hay una gráfica de sol abierta, actualizar la barra de hora actual
+  if(document.getElementById('sunhours-panel').classList.contains('open')){
+    _updateChartTimeMarker();
+  }
+}
+
+function stopPlay(){
+  clearInterval(playTimer);playTimer=null;
+  const btn=document.getElementById('play-btn');
+  btn.textContent='▶';btn.classList.remove('onplay');
+  btn.setAttribute('aria-label','Reproducir animación del día');
+  // Redibujar con updatePanel completo al parar
+  updatePanel();
+}
+
+// ── SUN HOURS CHART ──────────────────────────────────────────────────────────
+let sunHoursLat=null,sunHoursLon=null;
+
+function computeSunHours(lat,lon){
+  // Para cada minuto del día (resolución 15 min), comprueba si el sol está sobre el horizonte
+  // y si el punto (lat,lon) está en sombra usando los mismos polígonos de visibleGroups.
+  const STEP=15;
+  const result=[]; // {mins, inSun: bool}
+  const cosLat=Math.cos(rd(lat));
+  const mPDLat=111000, mPDLon=111000*cosLat;
+
+  for(let m=0;m<1440;m+=STEP){
+    const p=sunPos(m,lat,lon);
+    if(p.el<=0.5){result.push({m,sun:false});continue;}
+    if(!visibleGroups.length){result.push({m,sun:true});continue;}
+    const lenPerM=Math.min(MAX_SHADOW_LENGTH,1/Math.tan(rd(p.el)));
+    const uLat=-Math.cos(rd(p.az))*lenPerM/mPDLat;
+    const uLon=-Math.sin(rd(p.az))*lenPerM/mPDLon;
+    // ¿El punto está dentro de alguna sombra proyectada?
+    let inShadow=false;
+    outer:for(const g of visibleGroups){
+      for(const poly of (g.polys||[])){
+        const ring=poly.ring;if(!ring||ring.length<3)continue;
+        const h=poly.h;
+        // La sombra de este polígono se extiende desde ring hasta ring+uLon*h, uLat*h
+        // Comprobación simple: ¿el punto cae dentro del convex hull de la sombra proyectada?
+        const pts=[];
+        for(const[plon,plat]of ring){
+          pts.push([plon,plat]);
+          pts.push([plon+uLon*h,plat+uLat*h]);
+        }
+        const hull=convexHull(pts);
+        if(pointInPolygon(lon,lat,hull)){inShadow=true;break outer;}
+      }
+    }
+    result.push({m,sun:!inShadow});
+  }
+  return result;
+}
+
+function pointInPolygon(x,y,poly){
+  let inside=false;
+  for(let i=0,j=poly.length-1;i<poly.length;j=i++){
+    const [xi,yi]=poly[i],[xj,yj]=poly[j];
+    if(((yi>y)!==(yj>y))&&(x<(xj-xi)*(y-yi)/(yj-yi)+xi))inside=!inside;
+  }
+  return inside;
+}
+
+// Actualiza solo la barra de hora actual en la gráfica sin recalcular los datos
+// Guarda el imageData del fondo para hacer un repaint ligero
+let _chartBgData=null;
+let _chartW=0,_chartH=0;
+
+function _updateChartTimeMarker(){
+  const cv=document.getElementById('sh-canvas');
+  if(!cv||!cv.width||!_chartBgData)return;
+  const ctx=cv.getContext('2d');
+  const W=cv.width,H=cv.height;
+  if(_chartBgData.width!==W||_chartBgData.height!==H)return;
+  ctx.putImageData(_chartBgData,0,0);
+  const scale=Math.min(window.devicePixelRatio||1,2);
+  const BAR_H=Math.round(52*scale);
+  const STEP=15;
+  const cx=Math.round((curMins/STEP)/(1440/STEP)*W);
+  const CW=Math.round(2.5*scale);
+  ctx.fillStyle='rgba(60,140,255,1)';
+  ctx.fillRect(cx-CW/2,0,CW,BAR_H);
+  ctx.beginPath();
+  ctx.moveTo(cx-4*scale,0);ctx.lineTo(cx+4*scale,0);ctx.lineTo(cx,6*scale);
+  ctx.closePath();ctx.fill();
+}
+
+function drawSunHoursChart(data){
+  const cv=document.getElementById('sh-canvas');
+  if(!cv)return;
+  const scale=Math.min(window.devicePixelRatio||1,2);
+  const cssW=cv.offsetWidth||220;
+  const BAR_H=52,TICK_H=16; // CSS px
+  const W=Math.round(cssW*scale);
+  const BH=Math.round(BAR_H*scale);
+  const TH=Math.round(TICK_H*scale);
+  const H=BH+TH;
+  cv.width=W;cv.height=H;
+  cv.style.height=(BAR_H+TICK_H)+'px';
+  const ctx=cv.getContext('2d');
+  ctx.clearRect(0,0,W,H);
+  const STEP=15,slots=data.length;
+  const bw=W/slots;
+  const isDark=theme==='dark';
+  data.forEach(({sun},i)=>{
+    ctx.fillStyle=sun
+      ?(isDark?'rgba(255,180,50,.85)':'rgba(232,125,13,.80)')
+      :(isDark?'rgba(255,180,50,.12)':'rgba(232,125,13,.10)');
+    ctx.fillRect(i*bw,0,Math.max(1,bw-0.5*scale),BH);
+  });
+  // Tick marks + hour labels
+  const FS=Math.round(9*scale);
+  ctx.font=`${FS}px monospace`;ctx.textAlign='center';
+  for(let h=0;h<=24;h+=6){
+    const x=Math.round((h*60/STEP)/(1440/STEP)*W);
+    ctx.fillStyle=isDark?'rgba(255,255,255,.18)':'rgba(0,0,0,.14)';
+    ctx.fillRect(x,BH-Math.round(6*scale),Math.round(scale),Math.round(6*scale));
+    ctx.fillStyle=isDark?'rgba(255,255,255,.55)':'rgba(0,0,0,.50)';
+    ctx.fillText(h+'h',x,H-Math.round(2*scale));
+  }
+  // Save background before cursor (for real-time update during play)
+  _chartBgData=ctx.getImageData(0,0,W,H);
+  _chartW=W;_chartH=H;
+  // Current time cursor — BLUE
+  const cx=Math.round((curMins/STEP)/(1440/STEP)*W);
+  const CW=Math.round(2.5*scale);
+  ctx.fillStyle='rgba(60,140,255,1)';
+  ctx.fillRect(cx-CW/2,0,CW,BH);
+  ctx.beginPath();
+  ctx.moveTo(cx-4*scale,0);ctx.lineTo(cx+4*scale,0);ctx.lineTo(cx,6*scale);
+  ctx.closePath();ctx.fill();
+
+  const sunMins=data.filter(d=>d.sun).length*STEP;
+  const hh=Math.floor(sunMins/60),mm=sunMins%60;
+  document.getElementById('sh-total').textContent=`${hh}h ${mm}min de sol directo hoy`;
+  document.getElementById('sh-hint').textContent='Barra azul = hora actual · Clic para otro punto';
+}
+
+let _shMarker=null;
+
+function openSunHours(lat,lon){
+  sunHoursLat=lat;sunHoursLon=lon;
+  _chartBgData=null; // nuevo punto → forzar redibujado completo
+  const panel=document.getElementById('sunhours-panel');
+  panel.classList.add('open');
+  document.getElementById('sh-sub').textContent=`${lat.toFixed(4)}°N ${lon.toFixed(4)}°E`;
+  document.getElementById('sh-total').textContent='Calculando…';
+  document.getElementById('sh-hint').textContent='';
+  // Marcador azul en el mapa (distinto del beacon naranja de favoritos)
+  if(_shMarker){_shMarker.remove();}
+  const el=document.createElement('div');el.className='sh-marker-el';
+  _shMarker=new maplibregl.Marker({element:el,anchor:'center'}).setLngLat([lon,lat]).addTo(map);
+  // Defer to next frame so panel renders first
+  requestAnimationFrame(()=>{
+    const data=computeSunHours(lat,lon);
+    drawSunHoursChart(data);
+  });
+}
+function closeSunHours(){
+  document.getElementById('sunhours-panel').classList.remove('open');
+  if(_shMarker){_shMarker.remove();_shMarker=null;}
+  _chartBgData=null; // limpiar caché del fondo
+}
+
+// Clic simple en modo 2D también abre sun hours (acceso rápido)
+function setupSunHoursClick(){
+  map.on('click',e=>{
+    if(mode==='3d')return;
+    if(e.originalEvent&&e.originalEvent.button!==0)return; // solo botón izq
+    openSunHours(e.lngLat.lat,e.lngLat.lng);
+  });
+}
+
+// ── DRAG HANDLE CONTINUO (reemplaza la versión binaria) ──────────────────────
+(()=>{
+  if(!('ontouchstart' in window))return; // solo móvil
+  const panel=document.getElementById('panel');
+  const handle=document.getElementById('mob-handle');
+  if(!handle)return;
+
+  const COLLAPSED_H=80, FULL_H=Math.round(window.innerHeight*0.42);
+  let dragging=false,startY=0,startH=0;
+
+  const timemini=document.getElementById('mob-timemini');
+
+  handle.addEventListener('touchstart',e=>{
+    // No interceptar si el toque es sobre el slider o el reloj
+    if(e.target===document.getElementById('tsl-mob'))return;
+    if(timemini&&(e.target===timemini||timemini.contains(e.target)))return;
+    dragging=true;
+    startY=e.touches[0].clientY;
+    startH=panel.offsetHeight;
+    panel.classList.remove('mob-anim');
+    e.preventDefault();
+  },{passive:false});
+
+  handle.addEventListener('touchmove',e=>{
+    if(!dragging)return;
+    const dy=startY-e.touches[0].clientY; // negativo = bajando
+    let newH=Math.max(COLLAPSED_H,Math.min(FULL_H,startH+dy));
+    panel.style.height=newH+'px';
+    panel.style.maxHeight=FULL_H+'px';
+    e.preventDefault();
+  },{passive:false});
+
+  handle.addEventListener('touchend',e=>{
+    if(!dragging)return;dragging=false;
+    panel.classList.add('mob-anim');
+    const curH=panel.offsetHeight;
+    const mid=(COLLAPSED_H+FULL_H)/2;
+    const snap=curH>mid?FULL_H:COLLAPSED_H;
+    panel.style.height=snap+'px';
+    mobExpanded=snap>COLLAPSED_H;
+    // Limpiar el height inline tras la transición
+    setTimeout(()=>{
+      panel.classList.remove('mob-anim');
+      if(!mobExpanded){panel.style.height='';panel.classList.add('mob-collapsed');}
+      else{panel.style.height='';panel.classList.remove('mob-collapsed');}
+    },240);
+  },{passive:true});
+
+  // Tap en la pastilla = toggle
+  document.getElementById('mob-pill-row').addEventListener('click',toggleMobilePanel);
+})();
+
+// ── MENÚ CONTEXTUAL ──────────────────────────────────────────────────────────
+let _ctxLat=null,_ctxLon=null;
+
+function showContextMenu(lat,lon,clientX,clientY){
+  closeContextMenu();
+  _ctxLat=lat;_ctxLon=lon;
+  // Clavar el pin visual
+  if(_tempMarker){_tempMarker.remove();}
+  const el=document.createElement('div');el.className='drop-pin-el';el.textContent='📍';
+  _tempMarker=new maplibregl.Marker({element:el,anchor:'bottom'}).setLngLat([lon,lat]).addTo(map);
+
+  const menu=document.getElementById('ctx-menu');
+  const wrap=document.getElementById('mapwrap').getBoundingClientRect();
+  let mx=clientX-wrap.left, my=clientY-wrap.top;
+  // Evitar que salga del borde
+  menu.style.display='block';
+  const mw=menu.offsetWidth||210,mh=menu.offsetHeight||160;
+  menu.style.display='';
+  if(mx+mw>wrap.width-8)mx=wrap.width-mw-8;
+  if(my+mh>wrap.height-8)my=my-mh-8;
+  menu.style.left=Math.max(4,mx)+'px';
+  menu.style.top=Math.max(4,my)+'px';
+  menu.classList.add('open');
+}
+function closeContextMenu(){
+  document.getElementById('ctx-menu').classList.remove('open');
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#ctx-menu')&&!e.target.closest('#share-panel'))closeContextMenu();
+});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')closeContextMenu();});
+
+function ctxSaveFav(){
+  closeContextMenu();
+  const lat=_ctxLat,lon=_ctxLon;
+  if(lat===null)return;
+  openFavModalAt(lat,lon);
+}
+function ctxSunHours(){
+  closeContextMenu();
+  if(_ctxLat===null)return;
+  openSunHours(_ctxLat,_ctxLon);
+}
+function ctxShare(){
+  closeContextMenu();
+  openSharePanel();
+}
+function openSharePanel(){
+  document.getElementById('share-status').textContent='';
+  document.getElementById('share-panel').classList.add('open');
+}
+function closeSharePanel(){
+  document.getElementById('share-panel').classList.remove('open');
+  clearTempPin();
+}
+
+// ── COMPARTIR: ENLACE ─────────────────────────────────────────────────────────
+function shareLink(){
+  const lat=_ctxLat??MAP_LAT, lon=_ctxLon??MAP_LON;
+  const url=new URL(location.href);
+  url.searchParams.set('lat',lat.toFixed(5));
+  url.searchParams.set('lon',lon.toFixed(5));
+  url.searchParams.set('z',map?map.getZoom().toFixed(1):17.5);
+  url.searchParams.set('t',curMins);
+  url.searchParams.set('d',getLocalIsoDate(curDate));
+  url.searchParams.set('m',mode);
+  const str=url.toString();
+  if(navigator.clipboard){
+    navigator.clipboard.writeText(str).then(()=>{
+      setShareStatus('✅ Enlace copiado al portapapeles');
+      toast('🔗 Enlace copiado','locok',2500);
+    });
+  }else{
+    // Fallback
+    const ta=document.createElement('textarea');ta.value=str;document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);
+    setShareStatus('✅ Enlace copiado');
+  }
+}
+
+function setShareStatus(msg,timeout=3500){
+  const el=document.getElementById('share-status');
+  el.textContent=msg;
+  if(timeout)setTimeout(()=>{if(el.textContent===msg)el.textContent='';},timeout);
+}
+
+// ── COMPARTIR: INFOGRAFÍA (mapa + gráfica + datos) ────────────────────────────
+// Wrappers con estado de carga visual — overlay sobre el mapa mientras se genera
+function showGenOverlay(msg){
+  let ov=document.getElementById('gen-overlay');
+  if(!ov){
+    ov=document.createElement('div');ov.id='gen-overlay';
+    ov.style.cssText='position:absolute;inset:0;z-index:40;background:rgba(10,14,26,.55);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;';
+    ov.innerHTML=`<div style="width:36px;height:36px;border-radius:50%;border:3px solid rgba(232,125,13,.25);border-top-color:#e87d0d;animation:spin .8s linear infinite"></div><div style="color:#f2f2f2;font-size:11px;font-weight:500;">${msg}</div>`;
+    document.getElementById('mapwrap').appendChild(ov);
+  }else{ov.querySelector('div+div').textContent=msg;ov.style.display='flex';}
+}
+function hideGenOverlay(){
+  const ov=document.getElementById('gen-overlay');if(ov)ov.style.display='none';
+}
+async function shareImageBtn(btn){
+  showGenOverlay('📸 Generando infografía…');
+  try{await shareImage();}finally{hideGenOverlay();}
+}
+async function shareChartBtn(btn){
+  showGenOverlay('📊 Generando gráfica…');
+  try{await shareChartImage();}finally{hideGenOverlay();}
+}
+
+async function shareImage(){
+  setShareStatus('⏳ Generando imagen…',0);
+  try{
+    await new Promise(r=>map.once('idle',r));
+    await new Promise(r=>requestAnimationFrame(r));
+
+    const mapCanvas=map.getCanvas();
+    const W=mapCanvas.width, H=mapCanvas.height;
+    const isDark=theme==='dark';
+
+    // Escala base: todo en función de W para que sea correcto en cualquier DPR
+    const SC=W/800; // factor de escala (W físico / ancho de referencia)
+    const PAD=Math.round(20*SC);
+    const GH=Math.round(70*SC);       // altura de la gráfica
+    const LBL=Math.round(22*SC);      // altura de etiquetas de hora
+    const ROW1=Math.round(34*SC);     // fila 1 de texto (sol)
+    const ROW2=Math.round(60*SC);     // fila 2 de texto (coords)
+    const FOOT=PAD + GH + LBL + ROW2 + PAD; // footer total bien calculado
+
+    const out=document.createElement('canvas');
+    out.width=W; out.height=H+FOOT;
+    const ctx=out.getContext('2d');
+
+    // 1. Mapa
+    ctx.drawImage(mapCanvas,0,0,W,H);
+
+    // 2. Footer semitransparente
+    ctx.fillStyle=isDark?'rgba(15,20,32,.93)':'rgba(245,247,250,.95)';
+    ctx.fillRect(0,H,W,FOOT);
+    // Separador sutil
+    ctx.fillStyle=isDark?'rgba(232,125,13,.4)':'rgba(232,125,13,.35)';
+    ctx.fillRect(0,H,W,Math.max(2,Math.round(2*SC)));
+
+    // 3. Gráfica de sol
+    const lat=_ctxLat??sunHoursLat??MAP_LAT, lon=_ctxLon??sunHoursLon??MAP_LON;
+    const data=computeSunHours(lat,lon);
+    const STEP=15, slots=data.length;
+    const GX=PAD, GY=H+PAD, GW=W-PAD*2;
+    const bw=GW/slots;
+    data.forEach(({sun},i)=>{
+      ctx.fillStyle=sun
+        ?(isDark?'rgba(255,180,50,.85)':'rgba(232,125,13,.82)')
+        :(isDark?'rgba(255,180,50,.10)':'rgba(232,125,13,.08)');
+      ctx.fillRect(GX+i*bw, GY, Math.max(1,bw-1), GH);
+    });
+    // Marcador hora actual (azul)
+    const cxG=GX+Math.round((curMins/STEP)/(1440/STEP)*GW);
+    ctx.fillStyle='rgba(60,140,255,.95)';
+    ctx.fillRect(cxG-Math.round(1.5*SC), GY, Math.round(3*SC), GH);
+    // Etiquetas horas
+    const fTick=Math.round(11*SC);
+    ctx.font=`${fTick}px monospace`;
+    ctx.fillStyle=isDark?'rgba(255,255,255,.5)':'rgba(0,0,0,.45)';
+    ctx.textAlign='center';
+    for(let h=0;h<=24;h+=6){
+      const x=GX+Math.round((h*60/STEP)/(1440/STEP)*GW);
+      ctx.fillText(h+'h', x, GY+GH+Math.round(16*SC));
+    }
+
+    // 4. Texto — fila 1: resultado solar
+    const sunMins=data.filter(d=>d.sun).length*STEP;
+    const shh=Math.floor(sunMins/60), smm=sunMins%60;
+    const fMain=Math.round(15*SC);
+    const fSub=Math.round(12*SC);
+    const textY1=GY+GH+LBL+Math.round(6*SC); // arrancar justo debajo de las etiquetas
+    const textY2=textY1+Math.round(26*SC);
+
+    ctx.textAlign='left';
+    ctx.font=`bold ${fMain}px system-ui,sans-serif`;
+    ctx.fillStyle='#e87d0d';
+    ctx.fillText(`☀ ${shh}h ${smm}min de sol directo`, GX, textY1);
+
+    ctx.font=`${fSub}px monospace`;
+    ctx.fillStyle=isDark?'#9bacc0':'#4a5a6a';
+    ctx.fillText(`${lat.toFixed(4)}°N  ${lon.toFixed(4)}°E  ·  ${getLocalIsoDate(curDate)}`, GX, textY2);
+
+    // 5. Logo (esquina derecha, alineado con texto)
+    ctx.textAlign='right';
+    ctx.font=`bold ${fMain}px system-ui,sans-serif`;
+    // "Shadow" en naranja, "Map" en color texto
+    const logoRight=W-PAD;
+    const suffix='Map · Madrid';
+    const suffixW=ctx.measureText(suffix).width;
+    ctx.fillStyle='#e87d0d';
+    ctx.fillText('Shadow', logoRight-suffixW, textY1);
+    ctx.fillStyle=isDark?'#f2f2f2':'#0d1117';
+    ctx.fillText(suffix, logoRight, textY1);
+
+    ctx.font=`${fSub}px system-ui,sans-serif`;
+    ctx.fillStyle=isDark?'#637080':'#7a8898';
+    ctx.fillText('shadowmap-madrid.app', logoRight, textY2);
+
+    await downloadOrShareCanvas(out,'shadowmap.png','image/png');
+    setShareStatus('✅ Imagen lista');
+    toast('📸 Infografía descargada','locok',3000);
+  }catch(e){setShareStatus('❌ Error al generar imagen');console.error(e);}
+}
+
+// ── COMPARTIR: SOLO GRÁFICA ──────────────────────────────────────────────────
+async function shareChartImage(){
+  const lat=_ctxLat??sunHoursLat??MAP_LAT, lon=_ctxLon??sunHoursLon??MAP_LON;
+  setShareStatus('⏳ Generando gráfica…',0);
+  try{
+    const data=computeSunHours(lat,lon);
+    const STEP=15,slots=data.length;
+    const W=800,GH=160,PAD=32,FOOT=80;
+    const cv=document.createElement('canvas');cv.width=W;cv.height=GH+PAD+FOOT;
+    const ctx=cv.getContext('2d');
+    const isDark=theme==='dark';
+    ctx.fillStyle=isDark?'#0f1420':'#f0f2f5';ctx.fillRect(0,0,W,cv.height);
+    const bw=(W-PAD*2)/slots;
+    data.forEach(({sun},i)=>{
+      ctx.fillStyle=sun?(isDark?'rgba(255,180,50,.85)':'rgba(232,125,13,.80)'):(isDark?'rgba(255,180,50,.10)':'rgba(232,125,13,.08)');
+      ctx.fillRect(PAD+i*bw,PAD,bw-0.5,GH);
+    });
+    const cxG=PAD+Math.round((curMins/STEP)/(1440/STEP)*(W-PAD*2));
+    ctx.fillStyle='rgba(60,140,255,1)';ctx.fillRect(cxG-1.5,PAD,3,GH);
+    ctx.font='14px monospace';ctx.fillStyle=isDark?'rgba(255,255,255,.55)':'rgba(0,0,0,.50)';ctx.textAlign='center';
+    for(let h=0;h<=24;h+=6){const x=PAD+Math.round((h*60/STEP)/(1440/STEP)*(W-PAD*2));ctx.fillText(h+'h',x,PAD+GH+18);}
+    const sunMins=data.filter(d=>d.sun).length*STEP;
+    const shh=Math.floor(sunMins/60),smm=sunMins%60;
+    ctx.textAlign='left';ctx.font='bold 16px system-ui';ctx.fillStyle=isDark?'#f2f2f2':'#0d1117';
+    ctx.fillText(`☀ ${shh}h ${smm}min · ${lat.toFixed(4)}°N ${lon.toFixed(4)}°E · ${getLocalIsoDate(curDate)}`,PAD,PAD+GH+44);
+    ctx.textAlign='right';ctx.font='bold 14px system-ui';ctx.fillStyle='#e87d0d';
+    ctx.fillText('ShadowMap · Madrid',W-PAD,PAD+GH+44);
+    await downloadOrShareCanvas(cv,'shadowmap-chart.png','image/png');
+    setShareStatus('✅ Gráfica lista');
+    toast('📊 Gráfica descargada','locok',3000);
+  }catch(e){setShareStatus('❌ Error');console.error(e);}
+}
+
+async function downloadOrShareCanvas(canvas,filename,type){
+  const blob=await new Promise(r=>canvas.toBlob(r,type,0.92));
+  if(!blob){throw new Error('toBlob failed');}
+  // En móvil con Web Share API de archivos → intentar compartir
+  // En escritorio (o si falla) → descarga directa
+  const file=new File([blob],filename,{type});
+  const canWebShare=IS_MOBILE&&navigator.share&&navigator.canShare&&navigator.canShare({files:[file]});
+  if(canWebShare){
+    try{await navigator.share({files:[file],title:'ShadowMap Madrid'});return;}
+    catch(e){if(e.name==='AbortError')return;} // usuario canceló → no hacer nada
+    // Si falla por otra razón → caer al download
+  }
+  // Descarga directa (desktop y fallback móvil)
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=filename;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(url),8000);
+}
+
+// ── COMPARTIR: VÍDEO (MediaRecorder) ─────────────────────────────────────────
+let _recActive=false;
+
+function shareVideo(){
+  if(_recActive){setShareStatus('⏳ Ya hay una grabación en curso…');return;}
+  const isIOS=/iPad|iPhone|iPod/.test(navigator.userAgent)&&!window.MSStream;
+  const isSafari=/^((?!chrome|android).)*safari/i.test(navigator.userAgent);
+  if(isIOS||isSafari){setShareStatus('❌ Safari/iOS no soporta grabación — usa Chrome o Firefox');return;}
+  if(!window.MediaRecorder){setShareStatus('❌ Tu navegador no soporta grabación de vídeo');return;}
+  const mapCanvas=map.getCanvas();
+  if(typeof mapCanvas.captureStream!=='function'){setShareStatus('❌ Este navegador no puede capturar el canvas');return;}
+  // Cerrar el share panel antes de mostrar el banner de vídeo
+  closeSharePanel();
+  // Entrar en modo vídeo (oculta UI para ver mejor el encuadre)
+  document.body.classList.add('video-mode');
+  // Mostrar banner no bloqueante
+  document.getElementById('video-banner').classList.add('open');
+}
+function closeVideoBanner(){
+  document.getElementById('video-banner').classList.remove('open');
+  document.body.classList.remove('video-mode');
+}
+// alias para compatibilidad
+function closeVideoConfirm(){closeVideoBanner();}
+
+let _recTimer=null, _recSeconds=0;
+function startRecIndicator(){
+  _recSeconds=0;
+  const ind=document.getElementById('rec-indicator');
+  const timerEl=document.getElementById('rec-timer');
+  ind.classList.add('active');
+  _recTimer=setInterval(()=>{
+    _recSeconds++;
+    const m=String(Math.floor(_recSeconds/60)).padStart(2,'0');
+    const s=String(_recSeconds%60).padStart(2,'0');
+    timerEl.textContent=`${m}:${s}`;
+  },1000);
+}
+function stopRecIndicator(){
+  clearInterval(_recTimer);_recTimer=null;
+  document.getElementById('rec-indicator').classList.remove('active');
+  document.getElementById('rec-timer').textContent='00:00';
+}
+
+async function startVideoRecording(recMode='static'){
+  closeVideoBanner(); // cierra banner pero mantiene video-mode class (la quitamos al terminar)
+  document.body.classList.add('video-mode'); // asegurar que sigue activo
+  const t=sunTimes(MAP_LAT,MAP_LON);
+  const dawn=Math.max(0,Math.floor(t.sr*60)-30);
+  const dusk=Math.min(1439,Math.ceil(t.ss*60)+30);
+  if(dawn>=dusk){
+    document.body.classList.remove('video-mode');
+    setShareStatus('❌ No hay horas de sol hoy en esta fecha');return;
+  }
+
+  _recActive=true;
+  startRecIndicator();
+  setShareStatus('🎬 Grabando… '+(recMode==='dynamic'?'(modo dinámico)':'(no muevas el mapa)'),0);
+  if(playTimer)stopPlay();
+
+  // En 2D estático: forzar pitch=0 y bloquear interacción
+  // Estático: bloquear la interacción sin mover la cámara
+  if(recMode==='static'){
+    map.dragPan.disable();map.scrollZoom.disable();
+    map.touchZoomRotate.disable();map.keyboard.disable();
+    map.getContainer().style.pointerEvents='none';
+  }
+
+  curMins=dawn;
+  document.getElementById('tsl').value=dawn;
+  document.getElementById('tsl-mob').value=dawn;
+  updatePanel();
+  await new Promise(r=>map.once('idle',r));
+  await new Promise(r=>requestAnimationFrame(r));
+
+  const mapCanvas=map.getCanvas();
+  const shCv=document.getElementById('shcanvas'); // sombras 2D desktop
+  const W=mapCanvas.width, H=mapCanvas.height;
+  const SC=W/800;
+
+  const comp=document.createElement('canvas');
+  comp.width=W; comp.height=H;
+  const ctx=comp.getContext('2d');
+
+  function drawFrame(){
+    // 1. Mapa WebGL
+    ctx.drawImage(mapCanvas,0,0,W,H);
+    // 2. Canvas de sombras 2D (desktop 2D — en 3D shCv está oculto, no importa)
+    if(shCv&&shCv.width>0&&mode==='2d'&&!IS_MOBILE){
+      ctx.drawImage(shCv,0,0,W,H);
+    }
+
+    // 3. Brújula (esquina superior derecha)
+    const bearing=map.getBearing();
+    const r=rd(bearing);
+    const CR=Math.round(28*SC);
+    const CX=W-Math.round(58*SC), CY=Math.round(58*SC);
+    ctx.save();
+    // Fondo
+    ctx.beginPath();ctx.arc(CX,CY,CR+Math.round(5*SC),0,Math.PI*2);
+    ctx.fillStyle='rgba(12,18,30,.78)';ctx.fill();
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=Math.round(SC);ctx.stroke();
+    // Círculo de referencia
+    ctx.beginPath();ctx.arc(CX,CY,CR,0,Math.PI*2);
+    ctx.strokeStyle='rgba(255,255,255,.12)';ctx.lineWidth=Math.round(0.5*SC);ctx.stroke();
+    // Aguja norte — ROJA
+    const nx=CX+CR*Math.sin(r), ny=CY-CR*Math.cos(r);
+    ctx.beginPath();ctx.moveTo(CX,CY);ctx.lineTo(nx,ny);
+    ctx.strokeStyle='#e03030';ctx.lineWidth=Math.round(2.5*SC);ctx.lineCap='round';ctx.stroke();
+    // Punta N
+    ctx.font=`bold ${Math.round(9*SC)}px monospace`;
+    ctx.fillStyle='rgba(220,210,210,.9)';ctx.textAlign='center';ctx.textBaseline='middle';
+    ctx.fillText('N',CX+(CR+Math.round(11*SC))*Math.sin(r),CY-(CR+Math.round(11*SC))*Math.cos(r));
+
+    const p=sunPos(curMins,MAP_LAT,MAP_LON);
+    if(p.el>0){
+      // Rayo de sombra — dirección opuesta al sol, relativa al bearing del mapa
+      const shA=rd(p.az+180-bearing);
+      const shx=CX+CR*Math.sin(shA), shy=CY-CR*Math.cos(shA);
+      ctx.beginPath();ctx.moveTo(CX,CY);ctx.lineTo(shx,shy);
+      ctx.strokeStyle='rgba(130,155,200,.60)';ctx.lineWidth=Math.round(1.2*SC);
+      ctx.setLineDash([Math.round(3*SC),Math.round(3*SC)]);ctx.stroke();
+      ctx.setLineDash([]);
+      // Sol — naranja en la posición real relativa al bearing
+      const sunA=rd(p.az-bearing);
+      const sx=CX+CR*Math.sin(sunA), sy=CY-CR*Math.cos(sunA);
+      ctx.beginPath();ctx.arc(sx,sy,Math.round(4.5*SC),0,Math.PI*2);
+      ctx.fillStyle='#e87d0d';ctx.fill();
+    }
+    ctx.restore();
+
+    // 4. Barra inferior: coordenadas + hora
+    const BAR=Math.round(36*SC);
+    ctx.fillStyle='rgba(10,14,26,.72)';
+    ctx.fillRect(0,H-BAR,W,BAR);
+    const fnt=Math.round(12*SC);
+    ctx.font=`${fnt}px monospace`;
+    ctx.fillStyle='rgba(240,240,240,.9)';
+    ctx.textAlign='left';ctx.textBaseline='middle';
+    ctx.fillText(`${MAP_LAT.toFixed(4)}°N  ${MAP_LON.toFixed(4)}°E`,Math.round(12*SC),H-BAR/2);
+    ctx.textAlign='center';ctx.fillStyle='#e87d0d';
+    ctx.font=`bold ${Math.round(13*SC)}px monospace`;
+    ctx.fillText(fmtM(curMins),W/2,H-BAR/2);
+    ctx.font=`bold ${Math.round(9*SC)}px system-ui`;
+    ctx.textAlign='right';ctx.fillStyle='#e87d0d';
+    const suffix='Map';
+    ctx.fillText('Shadow',W-Math.round(12*SC)-ctx.measureText(suffix).width,H-BAR/2);
+    ctx.fillStyle='rgba(240,240,240,.75)';ctx.fillText(suffix,W-Math.round(12*SC),H-BAR/2);
+    ctx.textBaseline='alphabetic';
+  }
+
+  // Primer frame
+  drawFrame();
+
+  const mimeType=['video/webm;codecs=vp9','video/webm;codecs=vp8','video/webm']
+    .find(m=>MediaRecorder.isTypeSupported(m))||'video/webm';
+  const stream=comp.captureStream(30);
+  const rec=new MediaRecorder(stream,{mimeType,videoBitsPerSecond:5_000_000});
+  const chunks=[];
+  rec.ondataavailable=e=>{if(e.data.size>0)chunks.push(e.data);};
+  rec.start(100);
+
+  const STEP_V=3, FPS=20;
+  let m=dawn;
+  const advTimer=setInterval(()=>{
+    m+=STEP_V;
+    if(m>dusk){
+      clearInterval(advTimer);
+      drawFrame(); // último frame
+      setTimeout(()=>rec.stop(),250);
+    }else{
+      curMins=m;
+      document.getElementById('tsl').value=m;
+      document.getElementById('tsl-mob').value=m;
+      _playTick();
+      // Esperar al siguiente frame del mapa para que _playTick haya actualizado WebGL
+      requestAnimationFrame(drawFrame);
+    }
+  },1000/FPS);
+
+  rec.onstop=async()=>{
+    _recActive=false;
+    stopRecIndicator();
+    document.body.classList.remove('video-mode');
+    // Restaurar interacción del mapa (en modo estático estaba bloqueado)
+    if(recMode==='static'){
+      map.dragPan.enable();map.scrollZoom.enable();
+      map.touchZoomRotate.enable();map.keyboard.enable();
+      map.getContainer().style.pointerEvents='';
+    }
+    setShareStatus('⏳ Procesando vídeo…',0);
+    const blob=new Blob(chunks,{type:mimeType});
+    if(!blob.size){setShareStatus('❌ El vídeo está vacío — inténtalo de nuevo');return;}
+    const fname=`shadowmap-${getLocalIsoDate(curDate)}.webm`;
+    const file=new File([blob],fname,{type:mimeType});
+    const canWebShare=IS_MOBILE&&navigator.share&&navigator.canShare&&navigator.canShare({files:[file]});
+    if(canWebShare){
+      try{await navigator.share({files:[file],title:'ShadowMap Madrid'});
+        setShareStatus(`✅ Vídeo compartido (${(blob.size/1024/1024).toFixed(1)} MB)`);return;}
+      catch(e){if(e.name==='AbortError'){setShareStatus('');return;}}
+    }
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement('a');a.href=url;a.download=fname;
+    document.body.appendChild(a);a.click();document.body.removeChild(a);
+    setTimeout(()=>URL.revokeObjectURL(url),10000);
+    setShareStatus(`✅ Vídeo descargado (${(blob.size/1024/1024).toFixed(1)} MB)`);
+    toast(`🎬 Vídeo descargado · ${(blob.size/1024/1024).toFixed(1)} MB`,'locok',4000);
+  };
+}
+
+// ── PWA INSTALL ───────────────────────────────────────────────────────────────
+function pwaInstall(){
+  if(_deferredInstall){
+    _deferredInstall.prompt();
+    _deferredInstall.userChoice.then(r=>{
+      if(r.outcome==='accepted')_deferredInstall=null;
+    });
+  }else{
+    toast('ℹ️ Usa "Añadir a pantalla de inicio" en el menú del navegador','',5000);
+  }
+}
+
+// ── TOAST HELPER ─────────────────────────────────────────────────────────────
+// Muestra notificaciones en el #notif-stack reutilizando el sistema existente
+function toast(msg, state='', duration=3000){
+  showNotif(state, msg, duration);
+}
+function initTime(){
+  const now=new Date();
+  curDate=new Date(now.getFullYear(),now.getMonth(),now.getDate());
+  curMins=now.getHours()*60+now.getMinutes();
+  document.getElementById('tsl').value=curMins;
+  document.getElementById('tsl-mob').value=curMins;
+  document.getElementById('din').value=getLocalIsoDate(now);
+}
+
+document.documentElement.setAttribute('data-theme',theme);
+document.getElementById('theme-btn').textContent=theme==='dark'?'☀️':'🌙';
+
+// On mobile, start collapsed
+if(IS_MOBILE){
+  document.getElementById('panel').classList.add('mob-collapsed');
+}
+
+initTime();
+// Aplicar parámetros de URL (hora, fecha, modo) antes de arrancar
+(()=>{
+  try{
+    const p=new URLSearchParams(location.search);
+    if(p.has('t')){const t=parseInt(p.get('t'));if(!isNaN(t)){curMins=Math.max(0,Math.min(1439,t));document.getElementById('tsl').value=curMins;document.getElementById('tsl-mob').value=curMins;}}
+    if(p.has('d')){const d=new Date(p.get('d')+'T00:00:00');if(!isNaN(d)){curDate=d;document.getElementById('din').value=p.get('d');}}
+    if(p.has('m')&&(p.get('m')==='3d'||p.get('m')==='2d'))mode=p.get('m');
+  }catch{}
+})();
+initMap();fetchWeather(MAP_LAT,MAP_LON);updatePanel();
+loadFavs();renderFavs();
+document.getElementById('compass').style.display='block';
+maybeShowOnboarding();
+
+// ── PWA: Service Worker ───────────────────────────────────────────────────────
+if('serviceWorker' in navigator){
+  const swCode=`
+const CACHE='shadowmap-v26';
+self.addEventListener('install',e=>e.waitUntil(self.skipWaiting()));
+self.addEventListener('activate',e=>e.waitUntil(
+  caches.keys().then(ks=>Promise.all(ks.filter(k=>k!==CACHE).map(k=>caches.delete(k))))
+    .then(()=>self.clients.claim())
+));
+self.addEventListener('fetch',e=>{
+  if(e.request.method!=='GET')return;
+  e.respondWith(
+    fetch(e.request).then(r=>{
+      if(r.ok){const rc=r.clone();caches.open(CACHE).then(c=>c.put(e.request,rc));}
+      return r;
+    }).catch(()=>caches.match(e.request))
+  );
+});`;
+  try{
+    const swBlob=new Blob([swCode],{type:'application/javascript'});
+    const swURL=URL.createObjectURL(swBlob);
+    navigator.serviceWorker.register(swURL,{scope:'./'}).catch(()=>{});
+  }catch(e){}
+}
+
+// ── PWA: Prompt de instalación ────────────────────────────────────────────────
+let _deferredInstall=null;
+window.addEventListener('beforeinstallprompt',e=>{
+  e.preventDefault();_deferredInstall=e;
+  const btn=document.getElementById('pwa-install-btn');
+  if(btn)btn.style.display='flex';
+});
+window.addEventListener('appinstalled',()=>{
+  _deferredInstall=null;
+  const btn=document.getElementById('pwa-install-btn');
+  if(btn)btn.style.display='none';
+  toast('📱 ¡ShadowMap instalada en tu pantalla de inicio!','locok',5000);
+});
+</script>
+</body>
+</html>
