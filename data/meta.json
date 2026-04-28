@@ -1,0 +1,16 @@
+{
+  "generated": "2026-04-28T22:27:41Z",
+  "source": "Direcci\u00f3n General del Catastro \u2014 INSPIRE BU v4.0",
+  "license": "Reutilizaci\u00f3n de la informaci\u00f3n del Sector P\u00fablico (RISP). \u00a9 DGC",
+  "buildings": 0,
+  "tiles": 0,
+  "tile_deg": 0.004,
+  "adj_buf": 1e-06,
+  "m_per_floor": 3.1,
+  "bbox": {
+    "w": 9999,
+    "s": 9999,
+    "e": -9999,
+    "n": -9999
+  }
+}
